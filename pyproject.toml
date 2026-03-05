@@ -1,0 +1,15 @@
+[project]
+name = "planning-center-mcp"
+version = "0.1.0"
+description = "MCP server for Planning Center Online Services — worship plans, songs, teams, and reports"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.0.0",
+    "pypco>=1.1.0",
+    "python-dotenv>=1.0.0",
+    "pymongo>=4.7.0",
+    "httpx>=0.27.0",
+]
+
+[project.scripts]
+planning-center-mcp = "src.server:main"
