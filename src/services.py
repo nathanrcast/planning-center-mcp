@@ -1,4 +1,9 @@
+import functools
+import logging
+
 from pypco import PCO
+
+log = logging.getLogger(__name__)
 
 STRIP_KEYS = {"links", "relationships", "included", "meta"}
 STRIP_ATTR_KEYS = {
@@ -23,16 +28,39 @@ def slim_response(data):
     return data
 
 
+def _pco_error_handler(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            name = func.__name__
+            log.exception("PCO API error in %s", name)
+            status = getattr(e, "status_code", None) or getattr(getattr(e, "response", None), "status_code", None)
+            if status == 401:
+                return {"error": "Authentication failed. Check your PCO_APPLICATION_ID and PCO_SECRET_KEY."}
+            if status == 403:
+                return {"error": "Permission denied. Your API token may lack access to this resource."}
+            if status == 404:
+                return {"error": f"Resource not found. Check that the IDs passed to {name} are correct."}
+            if status == 429:
+                return {"error": "Rate limited by Planning Center. Wait a moment and try again."}
+            return {"error": f"{name} failed: {e}"}
+    return wrapper
+
+
 def register_tools(mcp: object, pco: PCO):
     """Register all PCO Services tools on the given FastMCP server."""
 
     @mcp.tool
+    @_pco_error_handler
     def get_service_types() -> list:
         """Get all service types from Planning Center Services."""
         response = pco.get("/services/v2/service_types")
         return slim_response(response["data"])
 
     @mcp.tool
+    @_pco_error_handler
     def get_plans(service_type_id: str) -> list:
         """Get plans for a given service type, ordered by most recently updated."""
         response = pco.get(
@@ -42,18 +70,21 @@ def register_tools(mcp: object, pco: PCO):
         return slim_response(response["data"])
 
     @mcp.tool
+    @_pco_error_handler
     def get_plan_items(plan_id: str) -> list:
         """Get all items (songs, headers, media) within a specific plan."""
         response = pco.get(f"/services/v2/plans/{plan_id}/items")
         return slim_response(response["data"])
 
     @mcp.tool
+    @_pco_error_handler
     def get_plan_team_members(plan_id: str) -> list:
         """Get team members assigned to a specific plan (volunteers, band, etc.)."""
         response = pco.get(f"/services/v2/plans/{plan_id}/team_members")
         return slim_response(response["data"])
 
     @mcp.tool
+    @_pco_error_handler
     def get_songs(page: int = 1, per_page: int = 100) -> dict:
         """Get songs from the library. Returns paginated results with total count.
 
@@ -76,18 +107,21 @@ def register_tools(mcp: object, pco: PCO):
         }
 
     @mcp.tool
+    @_pco_error_handler
     def get_song(song_id: str) -> dict:
         """Get details for a specific song by ID."""
         response = pco.get(f"/services/v2/songs/{song_id}")
         return slim_response(response["data"])
 
     @mcp.tool
+    @_pco_error_handler
     def find_song_by_title(title: str) -> list:
         """Search for songs by title (case-insensitive partial match)."""
         response = pco.get("/services/v2/songs", where={"title": title})
         return slim_response(response["data"])
 
     @mcp.tool
+    @_pco_error_handler
     def get_song_schedules(song_id: str) -> list:
         """Get schedule history for a song — shows every service where it was used.
 
@@ -101,12 +135,14 @@ def register_tools(mcp: object, pco: PCO):
         return slim_response(response["data"])
 
     @mcp.tool
+    @_pco_error_handler
     def get_all_arrangements_for_song(song_id: str) -> list:
         """Get all arrangements for a specific song."""
         response = pco.get(f"/services/v2/songs/{song_id}/arrangements")
         return slim_response(response["data"])
 
     @mcp.tool
+    @_pco_error_handler
     def get_arrangement_for_song(song_id: str, arrangement_id: str) -> dict:
         """Get a specific arrangement for a song."""
         response = pco.get(
@@ -115,6 +151,7 @@ def register_tools(mcp: object, pco: PCO):
         return slim_response(response["data"])
 
     @mcp.tool
+    @_pco_error_handler
     def get_keys_for_arrangement(song_id: str, arrangement_id: str) -> list:
         """Get available keys for a specific arrangement of a song."""
         response = pco.get(
@@ -123,6 +160,7 @@ def register_tools(mcp: object, pco: PCO):
         return slim_response(response["data"])
 
     @mcp.tool
+    @_pco_error_handler
     def create_song(title: str, ccli: str = None) -> dict:
         """Create a new song in the library.
 
@@ -138,6 +176,7 @@ def register_tools(mcp: object, pco: PCO):
         return slim_response(response["data"])
 
     @mcp.tool
+    @_pco_error_handler
     def assign_tags_to_song(song_id: str, tag_names: list[str]) -> str:
         """Assign tags to a song by tag name.
 
@@ -166,6 +205,7 @@ def register_tools(mcp: object, pco: PCO):
         return f"Assigned {len(tag_ids)} tag(s) to song {song_id}"
 
     @mcp.tool
+    @_pco_error_handler
     def get_arrangement_attachments(song_id: str, arrangement_id: str) -> list:
         """Get file attachments for a specific arrangement of a song.
 
@@ -196,6 +236,7 @@ def register_tools(mcp: object, pco: PCO):
         return result
 
     @mcp.tool
+    @_pco_error_handler
     def get_team_positions(service_type_id: str) -> list:
         """Get teams and their positions for a service type.
 
@@ -233,6 +274,7 @@ def register_tools(mcp: object, pco: PCO):
         return teams
 
     @mcp.tool
+    @_pco_error_handler
     def get_attachment_types() -> dict:
         """Get all attachment type groups and their types.
 
@@ -260,6 +302,7 @@ def register_tools(mcp: object, pco: PCO):
         return {"groups": groups}
 
     @mcp.tool
+    @_pco_error_handler
     def create_attachment_type(name: str, group_id: str = None, group_name: str = None) -> dict:
         """Create a custom attachment type for file classification.
 
@@ -296,6 +339,7 @@ def register_tools(mcp: object, pco: PCO):
         }
 
     @mcp.tool
+    @_pco_error_handler
     def map_positions_to_attachment_types(
         service_type_id: str,
         team_id: str,
@@ -338,6 +382,7 @@ def register_tools(mcp: object, pco: PCO):
         }
 
     @mcp.tool
+    @_pco_error_handler
     def enable_attachment_types(service_type_id: str, enabled: bool = True) -> dict:
         """Enable or disable attachment type visibility on a service type.
 
@@ -359,6 +404,36 @@ def register_tools(mcp: object, pco: PCO):
         }
 
     @mcp.tool
+    @_pco_error_handler
+    def get_song_tags() -> list:
+        """Get all available song tags grouped by tag group.
+
+        Use this to discover valid tag names before calling assign_tags_to_song
+        or find_songs_by_tags.
+        """
+        response = pco.get(
+            "/services/v2/tag_groups", include="tags", filter="song"
+        )
+        groups = []
+        included = response.get("included", [])
+        for g in response.get("data", []):
+            group_tag_ids = {
+                t["id"]
+                for t in (g.get("relationships", {}).get("tags", {}).get("data", []))
+            }
+            tags = [
+                t["attributes"]["name"]
+                for t in included
+                if t["id"] in group_tag_ids
+            ]
+            groups.append({
+                "group": g["attributes"]["name"],
+                "tags": tags,
+            })
+        return groups
+
+    @mcp.tool
+    @_pco_error_handler
     def find_songs_by_tags(tag_names: list[str]) -> list:
         """Find songs that match ALL specified tags (AND logic).
 

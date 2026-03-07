@@ -3,6 +3,7 @@ FROM python:3.12.9-slim
 WORKDIR /app
 
 COPY pyproject.toml .
+COPY src/__init__.py src/__init__.py
 RUN pip install --no-cache-dir . && \
     adduser --disabled-password --no-create-home appuser
 

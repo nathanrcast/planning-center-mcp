@@ -1,9 +1,10 @@
 import os
+import sys
 import threading
 
 from dotenv import load_dotenv
 from fastmcp import FastMCP
-from pymongo import MongoClient
+from pymongo import MongoClient, ASCENDING, TEXT
 from pypco import PCO
 
 from src.reports import register_report_tools
@@ -12,12 +13,14 @@ from src.sync import SyncManager
 
 load_dotenv()
 
+pco_app_id = os.getenv("PCO_APPLICATION_ID")
+pco_secret = os.getenv("PCO_SECRET_KEY")
+if not pco_app_id or not pco_secret:
+    sys.exit("ERROR: PCO_APPLICATION_ID and PCO_SECRET_KEY must be set in .env")
+
 mcp = FastMCP("Planning Center")
 
-pco = PCO(
-    application_id=os.getenv("PCO_APPLICATION_ID"),
-    secret=os.getenv("PCO_SECRET_KEY"),
-)
+pco = PCO(application_id=pco_app_id, secret=pco_secret)
 
 mongo_client = MongoClient(os.getenv("MONGO_URI", "mongodb://localhost:27017/planning_center"))
 db = mongo_client.get_default_database()
@@ -26,8 +29,18 @@ register_tools(mcp, pco)
 register_report_tools(mcp, db, pco)
 
 
+def _ensure_indexes():
+    db.plans.create_index([("sort_date", ASCENDING)])
+    db.plans.create_index([("service_type_id", ASCENDING)])
+    db.plans.create_index([("service_type_name", ASCENDING)])
+    db.songs.create_index([("title", ASCENDING)])
+    db.stories.create_index([("status", ASCENDING)])
+    db.stories.create_index([("title", TEXT), ("content", TEXT)])
+
+
 def _startup_sync():
     try:
+        _ensure_indexes()
         sync_mgr = SyncManager(db, pco)
         last = sync_mgr.get_last_sync()
         if last is None:

@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 from datetime import datetime, timezone
 
@@ -12,15 +13,25 @@ class SyncManager:
     def __init__(self, db: Database, pco: PCO):
         self.db = db
         self.pco = pco
+        self._lock = threading.Lock()
 
-    def sync_all(self) -> dict:
+    def sync_all(self, full: bool = False) -> dict:
+        if not self._lock.acquire(blocking=False):
+            return {"error": "A sync is already in progress. Try again later."}
+        try:
+            return self._sync_all(full=full)
+        finally:
+            self._lock.release()
+
+    def _sync_all(self, full: bool = False) -> dict:
         start = time.time()
-        stats = {}
+        last_sync = None if full else self.get_last_sync()
+        stats = {"mode": "full" if last_sync is None else "incremental"}
         errors = []
         for phase, fn in [
             ("service_types", self._sync_service_types),
-            ("plans", self._sync_plans),
-            ("songs", self._sync_songs),
+            ("plans", lambda: self._sync_plans(since=last_sync)),
+            ("songs", lambda: self._sync_songs(since=last_sync)),
             ("people", self._sync_people),
         ]:
             try:
@@ -61,12 +72,18 @@ class SyncManager:
             teams[team["data"]["id"]] = team["data"]["attributes"]["name"]
         return teams
 
-    def _sync_plans(self) -> int:
+    def _sync_plans(self, since: str | None = None) -> int:
         count = 0
         for st in self.db.service_types.find():
             st_id = st["_id"]
             teams_map = self._fetch_teams_for_service_type(st_id)
-            for plan in self.pco.iterate(f"/services/v2/service_types/{st_id}/plans"):
+            params = {}
+            if since:
+                params["filter"] = "updated_after"
+                params["updated_after"] = since
+            for plan in self.pco.iterate(
+                f"/services/v2/service_types/{st_id}/plans", **params
+            ):
                 plan_id = plan["data"]["id"]
                 attrs = plan["data"]["attributes"]
 
@@ -126,9 +143,13 @@ class SyncManager:
             })
         return members
 
-    def _sync_songs(self) -> int:
+    def _sync_songs(self, since: str | None = None) -> int:
         count = 0
-        for song in self.pco.iterate("/services/v2/songs"):
+        params = {}
+        if since:
+            params["filter"] = "updated_after"
+            params["updated_after"] = since
+        for song in self.pco.iterate("/services/v2/songs", **params):
             song_id = song["data"]["id"]
             attrs = song["data"]["attributes"]
 

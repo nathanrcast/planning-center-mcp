@@ -301,22 +301,32 @@ def search_prophecies_semantic(
     status: str = "approved",
     include_email: bool = False,
 ) -> list[dict]:
-    docs = list(
-        db.stories.find(
-            {"status": status, "embedding": {"$exists": True, "$ne": None}},
-            {"embedding": 1, "title": 1, "content": 1, "author_name": 1,
-             "author_email": 1, "author_type": 1, "tags": 1, "status": 1,
-             "submitted_at": 1, "approved_at": 1, "approved_by": 1},
-        )
+    # Pass 1: fetch only _id and embedding for scoring
+    embedding_docs = db.stories.find(
+        {"status": status, "embedding": {"$exists": True, "$ne": None}},
+        {"embedding": 1},
     )
     scored = []
-    for d in docs:
+    for d in embedding_docs:
         sim = _cosine_similarity(query_embedding, d["embedding"])
-        scored.append((sim, d))
+        scored.append((sim, d["_id"]))
     scored.sort(key=lambda x: x[0], reverse=True)
+    top = scored[:top_k]
+
+    if not top:
+        return []
+
+    # Pass 2: fetch full documents only for top-k results
+    top_ids = [doc_id for _, doc_id in top]
+    sim_by_id = {doc_id: sim for sim, doc_id in top}
+    full_docs = {
+        d["_id"]: d
+        for d in db.stories.find({"_id": {"$in": top_ids}})
+    }
     return [
-        {**_prophecy_doc(d, include_email=include_email), "similarity": round(sim, 4)}
-        for sim, d in scored[:top_k]
+        {**_prophecy_doc(full_docs[doc_id], include_email=include_email), "similarity": round(sim_by_id[doc_id], 4)}
+        for doc_id in top_ids
+        if doc_id in full_docs
     ]
 
 

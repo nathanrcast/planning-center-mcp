@@ -11,6 +11,11 @@ from src.queries import (
     search_prophecies_keyword,
     search_prophecies_semantic,
     get_prophecy,
+    team_names_list,
+    service_types_list,
+    sync_status,
+    list_prophecies,
+    prophecy_tags,
 )
 from src.sync import SyncManager
 
@@ -19,14 +24,16 @@ def register_report_tools(mcp: object, db: Database, pco: PCO):
     sync_mgr = SyncManager(db, pco)
 
     @mcp.tool
-    def sync_pco_data() -> str:
-        """Sync all Planning Center data into the local cache.
+    def sync_pco_data(full: bool = False) -> str:
+        """Sync Planning Center data into the local cache.
 
-        Pulls service types, plans (with items and team members), songs
-        (with arrangements and schedules), and people. Run this before
-        reports if data might be stale.
+        By default runs an incremental sync, fetching only records updated
+        since the last sync. Use full=True to force a complete re-sync.
+
+        Args:
+            full: Force a full sync instead of incremental (default False).
         """
-        stats = sync_mgr.sync_all()
+        stats = sync_mgr.sync_all(full=full)
         lines = ["**PCO Sync Complete**", ""]
         for key, val in stats.items():
             lines.append(f"- {key}: {val}")
@@ -36,18 +43,32 @@ def register_report_tools(mcp: object, db: Database, pco: PCO):
         return "\n".join(lines)
 
     @mcp.tool
-    def song_usage_report(months: int = 3) -> str:
+    def song_usage_report(
+        months: int = 3,
+        service_type_ids: list[str] | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> str:
         """Get a ranked report of song usage across all service types.
 
         Args:
-            months: How many months back to look (default 3).
+            months: How many months back to look (default 3). Ignored if start_date/end_date are set.
+            service_type_ids: Optional list of service type IDs to filter by.
+            start_date: Optional start date (ISO format, e.g. "2024-01-01").
+            end_date: Optional end date (ISO format, e.g. "2024-06-30").
         """
-        results = song_usage(db, months)
+        results = song_usage(db, months, service_type_ids=service_type_ids,
+                             start_date=start_date, end_date=end_date)
+
+        if start_date and end_date:
+            period = f"{start_date} to {end_date}"
+        else:
+            period = f"Last {months} Months"
 
         if not results:
-            return f"No songs played in the last {months} months."
+            return f"No songs played in {period}."
 
-        lines = [f"## Song Usage — Last {months} Months", ""]
+        lines = [f"## Song Usage — {period}", ""]
         lines.append("| # | Song | Times Played | Last Played |")
         lines.append("|---|------|-------------|-------------|")
         for i, r in enumerate(results, 1):
@@ -61,18 +82,35 @@ def register_report_tools(mcp: object, db: Database, pco: PCO):
         return report
 
     @mcp.tool
-    def volunteer_activity_report(months: int = 3) -> str:
+    def volunteer_activity_report(
+        months: int = 3,
+        service_type_ids: list[str] | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        team_names: list[str] | None = None,
+    ) -> str:
         """Get a ranked report of volunteer service frequency.
 
         Args:
-            months: How many months back to look (default 3).
+            months: How many months back to look (default 3). Ignored if start_date/end_date are set.
+            service_type_ids: Optional list of service type IDs to filter by.
+            start_date: Optional start date (ISO format, e.g. "2024-01-01").
+            end_date: Optional end date (ISO format, e.g. "2024-06-30").
+            team_names: Optional list of team names to filter by (e.g. ["Worship Band", "Vocals"]).
         """
-        results = volunteer_activity(db, months)
+        results = volunteer_activity(db, months, service_type_ids=service_type_ids,
+                                     start_date=start_date, end_date=end_date,
+                                     team_names=team_names)
+
+        if start_date and end_date:
+            period = f"{start_date} to {end_date}"
+        else:
+            period = f"Last {months} Months"
 
         if not results:
-            return f"No confirmed volunteers in the last {months} months."
+            return f"No confirmed volunteers in {period}."
 
-        lines = [f"## Volunteer Activity — Last {months} Months", ""]
+        lines = [f"## Volunteer Activity — {period}", ""]
         lines.append("| # | Name | Teams | Times Served |")
         lines.append("|---|------|-------|-------------|")
         for i, r in enumerate(results, 1):
@@ -255,3 +293,60 @@ def register_report_tools(mcp: object, db: Database, pco: PCO):
         lines.append(f"\n{prophecy['content']}")
 
         return "\n".join(lines)
+
+    @mcp.tool
+    def get_team_names() -> list[str]:
+        """Get all team names found in synced plan data.
+
+        Useful for discovering valid team names to pass to
+        volunteer_activity_report(team_names=...).
+        """
+        return team_names_list(db)
+
+    @mcp.tool
+    def get_service_types_cached() -> list[dict]:
+        """Get service types from the local cache (no API call).
+
+        Returns id and name for each service type. Useful for discovering
+        valid service_type_ids to pass to report filters.
+        """
+        return service_types_list(db)
+
+    @mcp.tool
+    def get_sync_status() -> dict:
+        """Check when the last data sync occurred, without triggering a sync."""
+        return sync_status(db)
+
+    @mcp.tool
+    def list_prophecies_report(
+        status: str | None = None,
+        tag: str | None = None,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> str:
+        """Browse prophecies with optional filtering by status and tag.
+
+        Args:
+            status: Filter by status (e.g. "approved", "pending").
+            tag: Filter by tag name.
+            page: Page number (default 1).
+            per_page: Results per page (default 20).
+        """
+        result = list_prophecies(db, status=status, tag=tag, page=page, per_page=per_page)
+        prophecies = result["prophecies"]
+        if not prophecies:
+            return "No prophecies found matching the given filters."
+
+        lines = [f"## Prophecies (page {result['page']}, {result['total']} total)", ""]
+        for s in prophecies:
+            lines.append(f"- **{s['title']}** (id: {s['id']}) — {s['author_name']}, {s['status']}")
+        return "\n".join(lines)
+
+    @mcp.tool
+    def get_prophecy_tags() -> list[str]:
+        """Get all tags used across prophecies.
+
+        Useful for discovering valid tag names for filtering with
+        search_prophecies or list_prophecies_report.
+        """
+        return prophecy_tags(db)
