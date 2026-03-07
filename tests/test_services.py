@@ -4,7 +4,7 @@ from src.services import slim_response, _pco_error_handler
 
 
 class TestSlimResponse:
-    def test_strips_top_level_keys(self):
+    def test_flattens_attributes(self):
         data = {
             "id": "1",
             "type": "Song",
@@ -14,10 +14,10 @@ class TestSlimResponse:
             "meta": {"can_edit": True},
         }
         result = slim_response(data)
-        assert result == {"id": "1", "type": "Song", "attributes": {"title": "Amazing Grace"}}
+        assert result == {"id": "1", "title": "Amazing Grace"}
+        assert "type" not in result
         assert "links" not in result
-        assert "relationships" not in result
-        assert "meta" not in result
+        assert "attributes" not in result
 
     def test_strips_attribute_keys(self):
         data = {
@@ -34,17 +34,17 @@ class TestSlimResponse:
             },
         }
         result = slim_response(data)
-        assert result["attributes"] == {"title": "Test"}
+        assert result == {"id": "1", "title": "Test"}
 
     def test_handles_list(self):
         data = [
-            {"id": "1", "attributes": {"title": "A"}, "links": {}},
-            {"id": "2", "attributes": {"title": "B"}, "meta": {}},
+            {"id": "1", "type": "Song", "attributes": {"title": "A"}, "links": {}},
+            {"id": "2", "type": "Song", "attributes": {"title": "B"}, "meta": {}},
         ]
         result = slim_response(data)
         assert len(result) == 2
-        assert result[0] == {"id": "1", "attributes": {"title": "A"}}
-        assert result[1] == {"id": "2", "attributes": {"title": "B"}}
+        assert result[0] == {"id": "1", "title": "A"}
+        assert result[1] == {"id": "2", "title": "B"}
 
     def test_handles_primitives(self):
         assert slim_response("hello") == "hello"
@@ -55,6 +55,14 @@ class TestSlimResponse:
         data = {"id": "1", "custom": {"key": "value"}}
         result = slim_response(data)
         assert result["custom"] == {"key": "value"}
+
+    def test_multiple_attributes_flattened(self):
+        data = {
+            "id": "1",
+            "attributes": {"title": "Song", "author": "Bach", "bpm": 120},
+        }
+        result = slim_response(data)
+        assert result == {"id": "1", "title": "Song", "author": "Bach", "bpm": 120}
 
 
 class TestPcoErrorHandler:

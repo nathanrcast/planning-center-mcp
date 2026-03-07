@@ -8,19 +8,18 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server for [P
 | Tool | Description |
 |------|-------------|
 | `get_service_types` | List all service types |
-| `get_plans` | Get plans for a service type (most recent first) |
+| `get_plans` | Paginated plans for a service type (most recent first) |
 | `get_plan_items` | Get songs, headers, and media in a plan |
 | `get_plan_team_members` | Get volunteers assigned to a plan |
+| `get_plan_details` | Get items and team members in one call |
 
 ### Songs & Arrangements
 | Tool | Description |
 |------|-------------|
 | `get_songs` | Paginated song library listing |
-| `get_song` | Get a single song by ID |
-| `find_song_by_title` | Search songs by title |
+| `get_song` | Get a song by ID or search by title |
 | `get_song_schedules` | Schedule history for a song |
-| `get_all_arrangements_for_song` | List arrangements |
-| `get_arrangement_for_song` | Get a specific arrangement |
+| `get_arrangements` | List arrangements, or get a specific one by ID |
 | `get_keys_for_arrangement` | Available keys for an arrangement |
 | `get_arrangement_attachments` | List file attachments (PDFs, audio, etc.) |
 | `create_song` | Create a new song |
@@ -51,7 +50,6 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server for [P
 | `service_plan_report` | Recent plans with setlists and teams |
 | `song_detail_report` | Full song details with schedule history |
 | `upcoming_services_report` | Upcoming plans with team gaps |
-| `get_service_types_cached` | Service types from cache (no API call) |
 | `get_team_names` | All team names from synced data |
 
 ### Prophecy Archive
@@ -135,7 +133,7 @@ PCO API ← pypco ← services.py (direct API tools)
 - **Direct tools** (`services.py`): Hit the PCO API live. No cache needed. All calls include error handling for auth, rate-limit, and not-found responses.
 - **Report tools** (`reports.py`): Query a local MongoDB cache for aggregated data. Supports filtering by service type, date range, and team. Run `sync_pco_data` to refresh.
 - **Sync** (`sync.py`): Incremental by default — only fetches records updated since the last sync. Use `sync_pco_data(full=True)` for a complete re-sync.
-- **AI summaries** (`llm.py`): Optional. If an Ollama instance is available, reports include short AI-generated insights.
+- **AI features** (`llm.py`): Optional. If an Ollama instance is available, enables semantic search for prophecies.
 
 ## Development
 
@@ -147,7 +145,6 @@ pytest
 ## Optional: AI Features
 
 If you have [Ollama](https://ollama.ai) running, set `OLLAMA_URL` in `.env` to enable:
-- AI-generated report summaries
 - Semantic similarity search for prophecies
 
-Models used: `nomic-embed-text` (embeddings), `llama3.2:3b` (summaries).
+Model used: `nomic-embed-text` (embeddings).
