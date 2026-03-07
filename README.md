@@ -28,6 +28,7 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server for [P
 ### Tags
 | Tool | Description |
 |------|-------------|
+| `get_song_tags` | List all available song tags by group |
 | `assign_tags_to_song` | Tag a song by tag name |
 | `find_songs_by_tags` | Find songs matching tags (AND logic) |
 
@@ -43,18 +44,23 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server for [P
 ### Reports (cached data)
 | Tool | Description |
 |------|-------------|
-| `sync_pco_data` | Refresh the local MongoDB cache from PCO |
-| `song_usage_report` | Ranked song usage over N months |
-| `volunteer_activity_report` | Volunteer service frequency |
+| `sync_pco_data` | Sync PCO data (incremental by default, `full=True` for complete re-sync) |
+| `get_sync_status` | Check when the last sync occurred |
+| `song_usage_report` | Ranked song usage with optional date range and service type filters |
+| `volunteer_activity_report` | Volunteer frequency with optional team and date filters |
 | `service_plan_report` | Recent plans with setlists and teams |
 | `song_detail_report` | Full song details with schedule history |
 | `upcoming_services_report` | Upcoming plans with team gaps |
+| `get_service_types_cached` | Service types from cache (no API call) |
+| `get_team_names` | All team names from synced data |
 
 ### Prophecy Archive
 | Tool | Description |
 |------|-------------|
 | `search_prophecies` | Keyword or semantic search across prophecies |
 | `get_prophecy_detail` | Full text of a specific prophecy |
+| `list_prophecies_report` | Browse prophecies with status/tag filters |
+| `get_prophecy_tags` | List all prophecy tags |
 
 ## Setup
 
@@ -126,9 +132,17 @@ PCO API ← pypco ← services.py (direct API tools)
                                                     ← llm.py (optional AI summaries)
 ```
 
-- **Direct tools** (`services.py`): Hit the PCO API live. No cache needed.
-- **Report tools** (`reports.py`): Query a local MongoDB cache for aggregated data. Run `sync_pco_data` to refresh.
+- **Direct tools** (`services.py`): Hit the PCO API live. No cache needed. All calls include error handling for auth, rate-limit, and not-found responses.
+- **Report tools** (`reports.py`): Query a local MongoDB cache for aggregated data. Supports filtering by service type, date range, and team. Run `sync_pco_data` to refresh.
+- **Sync** (`sync.py`): Incremental by default — only fetches records updated since the last sync. Use `sync_pco_data(full=True)` for a complete re-sync.
 - **AI summaries** (`llm.py`): Optional. If an Ollama instance is available, reports include short AI-generated insights.
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
 
 ## Optional: AI Features
 

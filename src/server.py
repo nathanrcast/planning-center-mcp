@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import threading
@@ -12,6 +13,7 @@ from src.services import register_tools
 from src.sync import SyncManager
 
 load_dotenv()
+log = logging.getLogger(__name__)
 
 pco_app_id = os.getenv("PCO_APPLICATION_ID")
 pco_secret = os.getenv("PCO_SECRET_KEY")
@@ -25,8 +27,10 @@ pco = PCO(application_id=pco_app_id, secret=pco_secret)
 mongo_client = MongoClient(os.getenv("MONGO_URI", "mongodb://localhost:27017/planning_center"))
 db = mongo_client.get_default_database()
 
+sync_mgr = SyncManager(db, pco)
+
 register_tools(mcp, pco)
-register_report_tools(mcp, db, pco)
+register_report_tools(mcp, db, sync_mgr)
 
 
 def _ensure_indexes():
@@ -41,19 +45,19 @@ def _ensure_indexes():
 def _startup_sync():
     try:
         _ensure_indexes()
-        sync_mgr = SyncManager(db, pco)
         last = sync_mgr.get_last_sync()
         if last is None:
-            print("No previous sync found — running initial sync...")
+            log.info("No previous sync found — running initial sync...")
             stats = sync_mgr.sync_all()
-            print(f"Initial sync complete: {stats}")
+            log.info("Initial sync complete: %s", stats)
         else:
-            print(f"Last sync: {last} — skipping startup sync (use sync_pco_data tool to refresh)")
-    except Exception as e:
-        print(f"Startup sync failed: {e}")
+            log.info("Last sync: %s — skipping startup sync (use sync_pco_data tool to refresh)", last)
+    except Exception:
+        log.exception("Startup sync failed")
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     threading.Thread(target=_startup_sync, daemon=True).start()
     mcp.run(transport="http", host="0.0.0.0", port=8080)
 

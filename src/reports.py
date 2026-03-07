@@ -1,5 +1,4 @@
 from pymongo.database import Database
-from pypco import PCO
 
 from src.llm import embed, summarize
 from src.queries import (
@@ -20,8 +19,7 @@ from src.queries import (
 from src.sync import SyncManager
 
 
-def register_report_tools(mcp: object, db: Database, pco: PCO):
-    sync_mgr = SyncManager(db, pco)
+def register_report_tools(mcp: object, db: Database, sync_mgr: SyncManager):
 
     @mcp.tool
     def sync_pco_data(full: bool = False) -> str:
