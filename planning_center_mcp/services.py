@@ -389,3 +389,138 @@ def register_tools(mcp: object, pco: PCO):
         params = {"where[song_tag_ids]": ",".join(tag_ids)}
         response = pco.get("/services/v2/songs", **params)
         return slim_response(response["data"])
+
+    # --- People API tools ---
+
+    @mcp.tool
+    @_pco_error_handler
+    def search_people(
+        search: str, page: int = 1, per_page: int = 25
+    ) -> dict:
+        """Search people by name, email, or phone number."""
+        offset = (page - 1) * per_page
+        response = pco.get(
+            "/people/v2/people",
+            **{"where[search_name_or_email_or_phone_number]": search},
+            per_page=per_page,
+            offset=offset,
+        )
+        return {
+            "data": slim_response(response["data"]),
+            "total": response.get("meta", {}).get("total_count"),
+            "page": page,
+            "per_page": per_page,
+        }
+
+    @mcp.tool
+    @_pco_error_handler
+    def get_person(person_id: str) -> dict:
+        """Get full person details including emails, phone numbers, and addresses."""
+        person_resp = pco.get(f"/people/v2/people/{person_id}")
+        emails_resp = pco.get(f"/people/v2/people/{person_id}/emails")
+        phones_resp = pco.get(f"/people/v2/people/{person_id}/phone_numbers")
+        addresses_resp = pco.get(f"/people/v2/people/{person_id}/addresses")
+        result = slim_response(person_resp["data"])
+        result["emails"] = slim_response(emails_resp["data"])
+        result["phone_numbers"] = slim_response(phones_resp["data"])
+        result["addresses"] = slim_response(addresses_resp["data"])
+        return result
+
+    @mcp.tool
+    @_pco_error_handler
+    def update_person(
+        person_id: str,
+        first_name: str = None,
+        last_name: str = None,
+        gender: str = None,
+        birthdate: str = None,
+        child: bool = None,
+        membership: str = None,
+        status: str = None,
+    ) -> dict:
+        """Update a person's attributes. Only provided fields are changed."""
+        attrs = {}
+        if first_name is not None:
+            attrs["first_name"] = first_name
+        if last_name is not None:
+            attrs["last_name"] = last_name
+        if gender is not None:
+            attrs["gender"] = gender
+        if birthdate is not None:
+            attrs["birthdate"] = birthdate
+        if child is not None:
+            attrs["child"] = child
+        if membership is not None:
+            attrs["membership"] = membership
+        if status is not None:
+            attrs["status"] = status
+        if not attrs:
+            return {"error": "No fields provided to update."}
+        payload = pco.template("Person", attrs)
+        response = pco.patch(f"/people/v2/people/{person_id}", payload)
+        return slim_response(response["data"])
+
+    @mcp.tool
+    @_pco_error_handler
+    def create_person(
+        first_name: str,
+        last_name: str,
+        email: str = None,
+        phone: str = None,
+    ) -> dict:
+        """Create a new person. Optionally add an email and/or phone number."""
+        payload = pco.template("Person", {
+            "first_name": first_name,
+            "last_name": last_name,
+        })
+        response = pco.post("/people/v2/people", payload)
+        result = slim_response(response["data"])
+        person_id = response["data"]["id"]
+        if email:
+            email_payload = pco.template("Email", {
+                "address": email,
+                "location": "Home",
+                "primary": True,
+            })
+            email_resp = pco.post(
+                f"/people/v2/people/{person_id}/emails", email_payload
+            )
+            result["email"] = slim_response(email_resp["data"])
+        if phone:
+            phone_payload = pco.template("PhoneNumber", {
+                "number": phone,
+                "location": "Mobile",
+                "primary": True,
+            })
+            phone_resp = pco.post(
+                f"/people/v2/people/{person_id}/phone_numbers", phone_payload
+            )
+            result["phone_number"] = slim_response(phone_resp["data"])
+        return result
+
+    @mcp.tool
+    @_pco_error_handler
+    def get_person_field_data(person_id: str) -> list:
+        """Get custom field data for a person (e.g. spiritual gifts, t-shirt size)."""
+        response = pco.get(
+            f"/people/v2/people/{person_id}/field_data",
+            include="field_definition",
+        )
+        included = {
+            item["id"]: item["attributes"]
+            for item in response.get("included", [])
+        }
+        results = []
+        for item in response["data"]:
+            entry = slim_response(item)
+            fd_data = (
+                item.get("relationships", {})
+                .get("field_definition", {})
+                .get("data", {})
+            )
+            fd_id = fd_data.get("id") if fd_data else None
+            if fd_id and fd_id in included:
+                entry["field_name"] = included[fd_id].get("name")
+                entry["field_type"] = included[fd_id].get("data_type")
+            results.append(entry)
+        return results

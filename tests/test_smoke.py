@@ -68,6 +68,11 @@ class TestSmoke:
             "get_team_names",
             "list_prophecies_report",
             "get_prophecy_tags",
+            "search_people",
+            "get_person",
+            "update_person",
+            "create_person",
+            "get_person_field_data",
         }
         missing = expected - tool_names
         assert not missing, f"Missing tools: {missing}"
