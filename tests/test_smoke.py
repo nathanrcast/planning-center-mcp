@@ -12,15 +12,15 @@ def mcp_app():
         "PCO_SECRET_KEY": "test_secret",
         "MONGO_URI": "mongodb://localhost:27017/test_db",
     }):
-        with patch("src.server.PCO") as mock_pco, \
-             patch("src.server.MongoClient") as mock_mongo:
+        with patch("planning_center_mcp.server.PCO") as mock_pco, \
+             patch("planning_center_mcp.server.MongoClient") as mock_mongo:
             mock_db = MagicMock()
             mock_mongo.return_value.get_default_database.return_value = mock_db
 
             import importlib
-            import src.server
-            importlib.reload(src.server)
-            yield src.server.mcp
+            import planning_center_mcp.server
+            importlib.reload(planning_center_mcp.server)
+            yield planning_center_mcp.server.mcp
 
 
 def _list_tool_names(mcp_app):

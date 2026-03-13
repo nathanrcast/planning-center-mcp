@@ -1,7 +1,7 @@
 import threading
 from unittest.mock import MagicMock, patch
 
-from src.sync import SyncManager
+from planning_center_mcp.sync import SyncManager
 
 
 def _make_sync_manager():

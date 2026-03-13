@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from src.services import slim_response, _pco_error_handler
+from planning_center_mcp.services import slim_response, _pco_error_handler
 
 
 class TestSlimResponse:

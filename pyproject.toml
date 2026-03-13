@@ -17,4 +17,4 @@ dev = [
 ]
 
 [project.scripts]
-planning-center-mcp = "src.server:main"
+planning-center-mcp = "planning_center_mcp.server:main"

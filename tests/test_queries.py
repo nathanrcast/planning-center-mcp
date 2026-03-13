@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 from datetime import datetime, timezone, timedelta
 
-from src.queries import (
+from planning_center_mcp.queries import (
     song_usage,
     volunteer_activity,
     song_detail,

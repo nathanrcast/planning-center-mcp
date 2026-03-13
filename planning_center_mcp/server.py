@@ -8,9 +8,9 @@ from fastmcp import FastMCP
 from pymongo import MongoClient, ASCENDING, TEXT
 from pypco import PCO
 
-from src.reports import register_report_tools
-from src.services import register_tools
-from src.sync import SyncManager
+from planning_center_mcp.reports import register_report_tools
+from planning_center_mcp.services import register_tools
+from planning_center_mcp.sync import SyncManager
 
 load_dotenv()
 log = logging.getLogger(__name__)

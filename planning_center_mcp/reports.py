@@ -1,7 +1,7 @@
 from pymongo.database import Database
 
-from src.llm import embed
-from src.queries import (
+from planning_center_mcp.llm import embed
+from planning_center_mcp.queries import (
     song_usage,
     volunteer_activity,
     service_plans,
@@ -15,7 +15,7 @@ from src.queries import (
     list_prophecies,
     prophecy_tags,
 )
-from src.sync import SyncManager
+from planning_center_mcp.sync import SyncManager
 
 
 def register_report_tools(mcp: object, db: Database, sync_mgr: SyncManager):
