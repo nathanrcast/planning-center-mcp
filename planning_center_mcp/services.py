@@ -375,6 +375,44 @@ def register_tools(mcp: object, pco: PCO):
 
     @mcp.tool
     @_pco_error_handler
+    def create_song_tag(tag_name: str, tag_group_name: str = "Type") -> str:
+        """Create a new tag in a song tag group. Creates the group if it doesn't exist."""
+        response = pco.get(
+            "/services/v2/tag_groups", filter="song"
+        )
+        group_id = None
+        for g in response.get("data", []):
+            if g["attributes"]["name"] == tag_group_name:
+                group_id = g["id"]
+                break
+        if not group_id:
+            new_group = pco.post(
+                "/services/v2/tag_groups",
+                {
+                    "data": {
+                        "type": "TagGroup",
+                        "attributes": {
+                            "name": tag_group_name,
+                            "tags_for": "song",
+                        },
+                    }
+                },
+            )
+            group_id = new_group["data"]["id"]
+        tag_response = pco.post(
+            f"/services/v2/tag_groups/{group_id}/tags",
+            {
+                "data": {
+                    "type": "Tag",
+                    "attributes": {"name": tag_name},
+                }
+            },
+        )
+        tag_id = tag_response["data"]["id"]
+        return f"Created tag '{tag_name}' (id={tag_id}) in group '{tag_group_name}' (id={group_id})"
+
+    @mcp.tool
+    @_pco_error_handler
     def find_songs_by_tags(tag_names: list[str]) -> list:
         """Find songs matching ALL given tags (AND logic)."""
         tag_groups_response = pco.get(
