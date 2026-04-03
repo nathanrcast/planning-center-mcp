@@ -234,6 +234,230 @@ def person_song_keys(db: Database, person_name: str,
     return {"person": person_name, "role": role, "keys": keys}
 
 
+def songs_not_played(db: Database, months: int = 6, min_total_plays: int = 2) -> list[dict]:
+    now = datetime.now(timezone.utc).isoformat()
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=months * 30)).isoformat()
+    pipeline = [
+        {"$unwind": "$items"},
+        {"$match": {"items.song_id": {"$ne": None}}},
+        {"$group": {
+            "_id": "$items.song_id",
+            "title": {"$first": "$items.title"},
+            "total_plays": {"$sum": 1},
+            "last_played": {"$max": "$sort_date"},
+            "recent_plays": {"$sum": {"$cond": [{"$gte": ["$sort_date", cutoff]}, 1, 0]}},
+        }},
+        {"$match": {"total_plays": {"$gte": min_total_plays}, "recent_plays": 0}},
+        {"$sort": {"last_played": -1}},
+        {"$project": {"_id": 0, "title": 1, "total_plays": 1, "last_played": 1}},
+    ]
+    results = list(db.plans.aggregate(pipeline))
+    return [
+        {
+            "title": r["title"],
+            "total_plays": r["total_plays"],
+            "last_played": r["last_played"][:10] if r.get("last_played") else None,
+        }
+        for r in results
+    ]
+
+
+def songs_by_key(db: Database, key_name: str) -> list[dict]:
+    pipeline = [
+        {"$unwind": "$items"},
+        {"$match": {
+            "items.song_id": {"$ne": None},
+            "items.key_name": {"$regex": f"^{re.escape(key_name)}$", "$options": "i"},
+        }},
+        {"$group": {
+            "_id": "$items.song_id",
+            "title": {"$first": "$items.title"},
+            "count": {"$sum": 1},
+            "last_played": {"$max": "$sort_date"},
+        }},
+        {"$sort": {"count": -1}},
+        {"$project": {"_id": 0, "title": 1, "count": 1, "last_played": 1}},
+    ]
+    results = list(db.plans.aggregate(pipeline))
+    return [
+        {
+            "title": r["title"],
+            "times_in_this_key": r["count"],
+            "last_played": r["last_played"][:10] if r.get("last_played") else None,
+        }
+        for r in results
+    ]
+
+
+def person_song_preferences(db: Database, person_name: str,
+                             role: str | None = None,
+                             months: int | None = None) -> dict:
+    member_filter: dict = {"name": {"$regex": re.escape(person_name), "$options": "i"}}
+    if role:
+        member_filter["position_name"] = {"$regex": re.escape(role), "$options": "i"}
+    match: dict = {"team_members": {"$elemMatch": member_filter}}
+    if months:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=months * 30)).isoformat()
+        match["sort_date"] = {"$gte": cutoff}
+    pipeline = [
+        {"$match": match},
+        {"$unwind": "$items"},
+        {"$match": {"items.song_id": {"$ne": None}}},
+        {"$group": {
+            "_id": "$items.song_id",
+            "title": {"$first": "$items.title"},
+            "count": {"$sum": 1},
+            "last_played": {"$max": "$sort_date"},
+        }},
+        {"$sort": {"count": -1}},
+        {"$project": {"_id": 0, "title": 1, "count": 1, "last_played": 1}},
+    ]
+    results = list(db.plans.aggregate(pipeline))
+    return {
+        "person": person_name,
+        "role": role,
+        "songs": [
+            {
+                "title": r["title"],
+                "count": r["count"],
+                "last_played": r["last_played"][:10] if r.get("last_played") else None,
+            }
+            for r in results
+        ],
+    }
+
+
+def songs_played_together(db: Database, title: str, limit: int = 10) -> dict | None:
+    song = db.songs.find_one({"title": {"$regex": re.escape(title), "$options": "i"}})
+    if not song:
+        return None
+    song_id = song["_id"]
+    plan_ids = [p["_id"] for p in db.plans.find({"items.song_id": song_id}, {"_id": 1})]
+    if not plan_ids:
+        return {"title": song["title"], "co_songs": []}
+    pipeline = [
+        {"$match": {"_id": {"$in": plan_ids}}},
+        {"$unwind": "$items"},
+        {"$match": {"items.song_id": {"$nin": [None, song_id]}}},
+        {"$group": {
+            "_id": "$items.song_id",
+            "title": {"$first": "$items.title"},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"count": -1}},
+        {"$limit": limit},
+        {"$project": {"_id": 0, "title": 1, "count": 1}},
+    ]
+    return {"title": song["title"], "co_songs": list(db.plans.aggregate(pipeline))}
+
+
+def service_position_patterns(db: Database, position: str = "intro", limit: int = 15) -> list[dict]:
+    pipeline = [
+        {"$unwind": "$items"},
+        {"$match": {
+            "items.song_id": {"$ne": None},
+            "items.service_position": {"$regex": re.escape(position), "$options": "i"},
+        }},
+        {"$group": {
+            "_id": "$items.song_id",
+            "title": {"$first": "$items.title"},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"count": -1}},
+        {"$limit": limit},
+        {"$project": {"_id": 0, "title": 1, "count": 1}},
+    ]
+    return list(db.plans.aggregate(pipeline))
+
+
+def service_bpm_flow(db: Database, service_type_name: str | None = None, count: int = 10) -> list[dict]:
+    match: dict = {}
+    if service_type_name:
+        match["service_type_name"] = {"$regex": re.escape(service_type_name), "$options": "i"}
+    plans = list(db.plans.find(match, sort=[("sort_date", -1)], limit=count))
+    result = []
+    for plan in plans:
+        songs_bpm = []
+        for item in sorted(plan.get("items", []), key=lambda x: x.get("sequence") or 0):
+            if not item.get("song_id"):
+                continue
+            song = db.songs.find_one({"_id": item["song_id"]}, {"arrangements": 1})
+            bpm = next(
+                (a["bpm"] for a in (song or {}).get("arrangements", []) if a.get("bpm")),
+                None,
+            )
+            songs_bpm.append({"title": item["title"], "bpm": bpm, "key": item.get("key_name")})
+        if songs_bpm:
+            result.append({
+                "date": plan["sort_date"][:10],
+                "service_type": plan.get("service_type_name"),
+                "songs": songs_bpm,
+            })
+    return result
+
+
+def song_retirement_candidates(db: Database, active_months: int = 12,
+                                inactive_months: int = 6, min_plays: int = 3) -> list[dict]:
+    recent_cutoff = (datetime.now(timezone.utc) - timedelta(days=inactive_months * 30)).isoformat()
+    old_cutoff = (datetime.now(timezone.utc) - timedelta(days=active_months * 30)).isoformat()
+    old_pipeline = [
+        {"$match": {"sort_date": {"$gte": old_cutoff, "$lt": recent_cutoff}}},
+        {"$unwind": "$items"},
+        {"$match": {"items.song_id": {"$ne": None}}},
+        {"$group": {
+            "_id": "$items.song_id",
+            "title": {"$first": "$items.title"},
+            "old_plays": {"$sum": 1},
+        }},
+        {"$match": {"old_plays": {"$gte": min_plays}}},
+    ]
+    old_songs = {r["_id"]: r for r in db.plans.aggregate(old_pipeline)}
+    recent_ids = {
+        r["_id"] for r in db.plans.aggregate([
+            {"$match": {"sort_date": {"$gte": recent_cutoff}}},
+            {"$unwind": "$items"},
+            {"$match": {"items.song_id": {"$ne": None}}},
+            {"$group": {"_id": "$items.song_id"}},
+        ])
+    }
+    candidates = [
+        {"title": v["title"], "plays_before": v["old_plays"]}
+        for k, v in old_songs.items()
+        if k not in recent_ids
+    ]
+    candidates.sort(key=lambda x: x["plays_before"], reverse=True)
+    return candidates
+
+
+def volunteer_decline_patterns(db: Database, months: int = 3, min_declines: int = 2) -> list[dict]:
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=months * 30)).isoformat()
+    pipeline = [
+        {"$match": {"sort_date": {"$gte": cutoff}}},
+        {"$unwind": "$team_members"},
+        {"$group": {
+            "_id": "$team_members.name",
+            "declined": {"$sum": {"$cond": [
+                {"$in": ["$team_members.status", ["D", "declined"]]}, 1, 0,
+            ]}},
+            "confirmed": {"$sum": {"$cond": [
+                {"$in": ["$team_members.status", ["C", "confirmed"]]}, 1, 0,
+            ]}},
+            "total": {"$sum": 1},
+        }},
+        {"$match": {"declined": {"$gte": min_declines}}},
+        {"$sort": {"declined": -1}},
+        {"$project": {
+            "_id": 0,
+            "name": "$_id",
+            "declined": 1,
+            "confirmed": 1,
+            "total": 1,
+            "decline_rate": {"$round": [{"$divide": ["$declined", "$total"]}, 2]},
+        }},
+    ]
+    return list(db.plans.aggregate(pipeline))
+
+
 def song_key_usage(db: Database, months: int = 6,
                    start_date: str | None = None,
                    end_date: str | None = None) -> list[dict]:

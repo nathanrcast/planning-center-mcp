@@ -5,6 +5,14 @@ from planning_center_mcp.queries import (
     song_usage,
     song_key_usage,
     person_song_keys,
+    songs_not_played,
+    songs_by_key,
+    person_song_preferences,
+    songs_played_together,
+    service_position_patterns,
+    service_bpm_flow,
+    song_retirement_candidates,
+    volunteer_decline_patterns,
     volunteer_activity,
     service_plans,
     song_detail,
@@ -81,6 +89,70 @@ def register_report_tools(mcp: object, db: Database, sync_mgr: SyncManager):
         Use this for questions like 'what keys does [name] play in?' or
         'what keys are used when [name] is worship leader?'"""
         return person_song_keys(db, person_name, role=role, months=months)
+
+    @mcp.tool
+    def person_song_preferences_report(
+        person_name: str,
+        role: str | None = None,
+        months: int | None = None,
+    ) -> dict:
+        """Songs played in plans where a specific person served, ranked by frequency.
+        Optionally filter by role and months. Use for 'what songs does [name] usually pick?'
+        For keys instead of song titles, use person_song_keys_report."""
+        return person_song_preferences(db, person_name, role=role, months=months)
+
+    @mcp.tool
+    def songs_not_played_report(months: int = 6, min_total_plays: int = 2) -> list:
+        """Songs with at least min_total_plays all-time that haven't been played in the last N months.
+        Sorted by most recently played before the cutoff. Useful for rediscovering neglected songs."""
+        return songs_not_played(db, months=months, min_total_plays=min_total_plays)
+
+    @mcp.tool
+    def songs_by_key_report(key_name: str) -> list:
+        """All songs that have been played in a specific key (e.g. 'G', 'Bb', 'C#'),
+        ranked by how many times they've been played in that key.
+        Useful for 'what songs can we do in G?' or setlist planning by key."""
+        return songs_by_key(db, key_name)
+
+    @mcp.tool
+    def songs_played_together_report(title: str, limit: int = 10) -> dict | str:
+        """Songs most frequently paired with a given song in the same service plan.
+        Useful for 'what songs go well with [title]?' or building setlists with consistent flow."""
+        result = songs_played_together(db, title, limit=limit)
+        if result is None:
+            return f"No song found matching '{title}'."
+        return result
+
+    @mcp.tool
+    def service_position_report(position: str = "intro", limit: int = 15) -> list:
+        """Songs most commonly used in a given service position, ranked by frequency.
+        Common positions: 'intro', 'outro', 'middle'. Use for 'what do we usually open with?'"""
+        return service_position_patterns(db, position=position, limit=limit)
+
+    @mcp.tool
+    def service_bpm_flow_report(service_type_name: str | None = None, count: int = 10) -> list:
+        """BPM and key progression for recent service plans, in song order.
+        Note: BPM data may be sparse if arrangements haven't been filled in PCO.
+        Useful for 'what's our typical tempo flow?' or energy arc analysis."""
+        return service_bpm_flow(db, service_type_name=service_type_name, count=count)
+
+    @mcp.tool
+    def song_retirement_report(
+        active_months: int = 12,
+        inactive_months: int = 6,
+        min_plays: int = 3,
+    ) -> list:
+        """Songs played frequently in the older window (active_months ago) but not used recently
+        (within inactive_months). Sorted by former play count. Useful for identifying songs
+        that have quietly fallen off the rotation."""
+        return song_retirement_candidates(db, active_months=active_months,
+                                          inactive_months=inactive_months, min_plays=min_plays)
+
+    @mcp.tool
+    def volunteer_decline_report(months: int = 3, min_declines: int = 2) -> list:
+        """Volunteers with the most declined service requests in the last N months,
+        including their decline rate. Useful for 'who has been declining a lot lately?'"""
+        return volunteer_decline_patterns(db, months=months, min_declines=min_declines)
 
     @mcp.tool
     def song_key_usage_report(

@@ -30,6 +30,14 @@ AGENT_TOOL_NAMES = {
     "song_usage_report",
     "song_key_usage_report",
     "person_song_keys_report",
+    "person_song_preferences_report",
+    "songs_not_played_report",
+    "songs_by_key_report",
+    "songs_played_together_report",
+    "service_position_report",
+    "service_bpm_flow_report",
+    "song_retirement_report",
+    "volunteer_decline_report",
     "volunteer_activity_report",
     "service_plan_report",
     "song_detail_report",
@@ -49,7 +57,10 @@ Rules:
 - For service/plan lookups, call get_service_types first to get the service type IDs.
 - For song key questions about a specific song (e.g. "what key is this song usually played in?"), call song_detail_report — it includes key_name per schedule entry. Count occurrences to find the most common key.
 - For aggregate key questions (e.g. "what are the most popular keys?", "what key is used most often?"), call song_key_usage_report — it returns keys ranked by frequency across all songs in a time period.
-- For person-specific key questions (e.g. "what keys does [name] play in?", "what keys when [name] is worship leader?"), call person_song_keys_report with person_name and optionally role.
+- For person-specific key questions (e.g. "what keys does [name] play in?"), call person_song_keys_report. For what songs a person tends to pick, call person_song_preferences_report.
+- For setlist planning: songs_by_key_report (all songs played in a key), songs_played_together_report (what pairs well with a song), service_position_report (typical openers/closers).
+- For rotation health: songs_not_played_report (neglected songs), song_retirement_report (formerly popular, now dropped), service_bpm_flow_report (tempo arc across recent services).
+- For volunteer health: volunteer_decline_report (who has been declining), volunteer_activity_report (who has been most active).
 - Keep answers concise. Use bullet points or short tables for lists.
 - If you cannot find the requested information, say so clearly.
 - Only pass parameters that are explicitly listed in the tool's parameter schema. Never invent parameters.
