@@ -207,6 +207,29 @@ def sync_status(db: Database) -> dict:
     return {"last_sync": meta["timestamp"] if meta else None}
 
 
+def song_key_usage(db: Database, months: int = 6,
+                   start_date: str | None = None,
+                   end_date: str | None = None) -> list[dict]:
+    if start_date and end_date:
+        cutoff, now = start_date, end_date
+    else:
+        now = datetime.now(timezone.utc).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=months * 30)).isoformat()
+
+    pipeline = [
+        {"$match": {"sort_date": {"$gte": cutoff, "$lte": now}}},
+        {"$unwind": "$items"},
+        {"$match": {
+            "items.song_id": {"$ne": None},
+            "items.key_name": {"$nin": [None, ""]},
+        }},
+        {"$group": {"_id": "$items.key_name", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$project": {"_id": 0, "key": "$_id", "count": 1}},
+    ]
+    return list(db.plans.aggregate(pipeline))
+
+
 # ── Prophecy queries ───────────────────────────────────────────
 
 

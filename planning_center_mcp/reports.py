@@ -3,6 +3,7 @@ from pymongo.database import Database
 from planning_center_mcp.llm import embed
 from planning_center_mcp.queries import (
     song_usage,
+    song_key_usage,
     volunteer_activity,
     service_plans,
     song_detail,
@@ -67,6 +68,21 @@ def register_report_tools(mcp: object, db: Database, sync_mgr: SyncManager):
         if not result:
             return f"No song found matching '{title}'."
         return result
+
+    @mcp.tool
+    def song_key_usage_report(
+        months: int = 6,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict:
+        """Aggregate key usage across all songs in a time period, ranked by frequency.
+        Use this to answer questions like 'what keys are used most often?' or
+        'what is the most common worship key?'. Filter by months or ISO start_date/end_date."""
+        results = song_key_usage(db, months=months, start_date=start_date, end_date=end_date)
+        period = f"{start_date} to {end_date}" if start_date and end_date else f"last {months} months"
+        if not results:
+            return {"period": period, "keys": [], "total": 0}
+        return {"period": period, "keys": results, "total": sum(r["count"] for r in results)}
 
     @mcp.tool
     def upcoming_services_report(weeks: int = 4) -> list:
