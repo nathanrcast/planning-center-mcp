@@ -138,6 +138,7 @@ def song_detail(db: Database, title: str) -> dict | None:
         {"$project": {
             "date": "$sort_date",
             "service_type_name": "$service_type_name",
+            "key_name": "$items.key_name",
         }},
         {"$sort": {"date": -1}},
     ]
@@ -159,6 +160,7 @@ def song_detail(db: Database, title: str) -> dict | None:
             {
                 "date": s["date"][:10] if s.get("date") else None,
                 "service_type_name": s.get("service_type_name"),
+                "key_name": s.get("key_name"),
             }
             for s in schedules
         ],
