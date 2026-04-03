@@ -63,7 +63,8 @@ async def _build_ollama_tools(mcp_server):
     for tool in tools_meta:
         if tool.name not in AGENT_TOOL_NAMES:
             continue
-        schema = tool.inputSchema or {"type": "object", "properties": {}}
+        mcp_tool = tool.to_mcp_tool()
+        schema = mcp_tool.inputSchema or {"type": "object", "properties": {}}
         ollama_tools.append({
             "type": "function",
             "function": {
