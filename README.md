@@ -48,16 +48,40 @@ Includes a built-in AI agent (`ask_question`) that accepts natural language ques
 | `enable_attachment_types` | Toggle position-based file visibility on a service type |
 
 ### Reports (cached data)
+
+**Sync**
 | Tool | Description |
 |------|-------------|
 | `sync_pco_data` | Sync PCO data (incremental by default, `full=True` for complete re-sync) |
 | `get_sync_status` | Check when the last sync occurred |
-| `song_usage_report` | Ranked song usage with optional date range and service type filters |
-| `volunteer_activity_report` | Volunteer frequency with optional team and date filters |
-| `service_plan_report` | Recent plans with setlists and teams |
-| `song_detail_report` | Full song details with schedule history |
-| `upcoming_services_report` | Upcoming plans with team gaps |
 | `get_team_names` | All team names from synced data |
+
+**Song Library**
+| Tool | Description |
+|------|-------------|
+| `song_usage_report` | Ranked song play counts with optional date range and service type filters |
+| `song_detail_report` | Full song details: arrangements, key-per-schedule history |
+| `song_key_usage_report` | Keys ranked by frequency across all songs in a time period |
+| `songs_by_key_report` | All songs ever played in a specific key (e.g. `G`, `Bb`), ranked by count |
+| `songs_not_played_report` | Songs not played in the last N months — sorted by most recently used before the cutoff |
+| `songs_played_together_report` | Songs most frequently paired with a given song in the same service |
+| `song_retirement_report` | Songs that were played frequently in an older window but have since dropped off |
+| `service_bpm_flow_report` | Tempo (BPM) and key progression across recent services, in song order |
+
+**Service Plans**
+| Tool | Description |
+|------|-------------|
+| `service_plan_report` | Recent plans with setlists (including key per song) and team rosters |
+| `upcoming_services_report` | Upcoming plans with confirmed / pending / declined team members |
+| `service_position_report` | Songs most commonly used in a given service position (`intro`, `outro`, `middle`) |
+
+**Volunteers & People**
+| Tool | Description |
+|------|-------------|
+| `volunteer_activity_report` | Volunteer frequency with optional team and date filters |
+| `volunteer_decline_report` | Volunteers with the most declined requests, including decline rate |
+| `person_song_keys_report` | Keys used in plans where a person served, optionally filtered by role |
+| `person_song_preferences_report` | Songs played when a person served, optionally filtered by role |
 
 ### Prophecy Archive
 | Tool | Description |
@@ -75,7 +99,7 @@ The `ask_question` tool runs a multi-step tool-calling loop using a local Ollama
 
 ### How It Works
 
-1. Your question is sent to the Ollama model along with the schemas for 20 curated read-only tools
+1. Your question is sent to the Ollama model along with the schemas for 30 curated read-only tools
 2. The model decides which tools to call and with what parameters
 3. Tool results are fed back to the model
 4. Steps 2–3 repeat (up to 10 iterations) until the model produces a final answer
@@ -95,15 +119,24 @@ Any model with tool-calling support works. Larger models (24B+) are significantl
 ```
 What are our top 10 most played songs over the last 6 months?
 When did we last play "How Great Is Our God"?
-Which songs tagged "Worship" have we not played in over a year?
-Show me all songs with chord chart attachments.
 What key do we usually play "Blessed Be Your Name" in?
+What songs have we not played in the last 3 months?
+What songs have we quietly dropped from rotation this year?
+```
+
+**Keys & Setlist Planning**
+```
+What are the most popular keys we use?
+What songs can we do in G?
+What songs pair well with "Cornerstone"?
+What do we usually open with?
+What's our typical tempo arc through a service?
 ```
 
 **Service Plans**
 ```
 What songs are in this Sunday's service?
-Show me the last 3 Sunday morning setlists.
+Show me the last 3 Sunday morning setlists with keys.
 Which upcoming services have open volunteer spots?
 What did we play on Easter?
 ```
@@ -111,14 +144,15 @@ What did we play on Easter?
 **Volunteers & Teams**
 ```
 Who are our most active volunteers over the last 3 months?
-Which volunteers have served more than 10 times this year?
+Who has been declining a lot of service requests lately?
 Who is on the worship team this Sunday?
 Which team positions are unfilled for next week?
 ```
 
-**People**
+**Person-Specific**
 ```
-Find the contact info for [name].
+What keys does [name] play in when on guitar?
+What songs does [name] tend to pick when leading worship?
 What teams does [name] serve on?
 ```
 
@@ -218,7 +252,7 @@ agent.py  ─ Ollama (tool-calling loop) ─ dispatches to any registered tool
 - **Direct tools** (`services.py`): Hit the PCO API live. No cache needed.
 - **Report tools** (`reports.py`): Query local MongoDB for aggregated data. Run `sync_pco_data` to refresh.
 - **Sync** (`sync.py`): Incremental by default — only fetches records updated since the last sync.
-- **Agent** (`agent.py`): Accepts a natural language question, builds an Ollama tool-calling loop over 20 curated read-only tools, and returns a plain-text answer.
+- **Agent** (`agent.py`): Accepts a natural language question, builds an Ollama tool-calling loop over 30 curated read-only tools, and returns a plain-text answer.
 - **AI features** (`llm.py`): Optional. Enables semantic search for prophecies via `nomic-embed-text` embeddings.
 
 ---
