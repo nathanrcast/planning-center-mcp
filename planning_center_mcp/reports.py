@@ -1,6 +1,5 @@
 from pymongo.database import Database
 
-from planning_center_mcp.llm import embed
 from planning_center_mcp.queries import (
     song_usage,
     song_key_usage,
@@ -17,13 +16,8 @@ from planning_center_mcp.queries import (
     service_plans,
     song_detail,
     upcoming_services,
-    search_prophecies_keyword,
-    search_prophecies_semantic,
-    get_prophecy,
     team_names_list,
     sync_status,
-    list_prophecies,
-    prophecy_tags,
 )
 from planning_center_mcp.sync import SyncManager
 
@@ -175,24 +169,6 @@ def register_report_tools(mcp: object, db: Database, sync_mgr: SyncManager):
         return upcoming_services(db, weeks)
 
     @mcp.tool
-    def search_prophecies(query: str, semantic: bool = False) -> list:
-        """Search prophecies by keyword or semantic similarity."""
-        if semantic:
-            query_embedding = embed(query)
-            if not query_embedding:
-                return [{"error": "Embedding service unavailable. Try keyword search."}]
-            return search_prophecies_semantic(db, query_embedding, top_k=10)
-        return search_prophecies_keyword(db, query)
-
-    @mcp.tool
-    def get_prophecy_detail(prophecy_id: str) -> dict | str:
-        """Full text of a prophecy by ID."""
-        result = get_prophecy(db, prophecy_id)
-        if not result:
-            return f"No prophecy found with ID '{prophecy_id}'."
-        return result
-
-    @mcp.tool
     def get_team_names() -> list[str]:
         """All team names from synced data. Use for volunteer_activity_report filtering."""
         return team_names_list(db)
@@ -202,17 +178,3 @@ def register_report_tools(mcp: object, db: Database, sync_mgr: SyncManager):
         """When the last data sync occurred."""
         return sync_status(db)
 
-    @mcp.tool
-    def list_prophecies_report(
-        status: str | None = None,
-        tag: str | None = None,
-        page: int = 1,
-        per_page: int = 20,
-    ) -> dict:
-        """Browse prophecies. Filter by status (approved/pending) or tag."""
-        return list_prophecies(db, status=status, tag=tag, page=page, per_page=per_page)
-
-    @mcp.tool
-    def get_prophecy_tags() -> list[str]:
-        """All tags used across prophecies."""
-        return prophecy_tags(db)

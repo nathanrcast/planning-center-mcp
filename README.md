@@ -83,14 +83,6 @@ Includes a built-in AI agent (`ask_question`) that accepts natural language ques
 | `person_song_keys_report` | Keys used in plans where a person served, optionally filtered by role |
 | `person_song_preferences_report` | Songs played when a person served, optionally filtered by role |
 
-### Prophecy Archive
-| Tool | Description |
-|------|-------------|
-| `search_prophecies` | Keyword or semantic search across prophecies |
-| `get_prophecy_detail` | Full text of a specific prophecy |
-| `list_prophecies_report` | Browse prophecies with status/tag filters |
-| `get_prophecy_tags` | List all prophecy tags |
-
 ---
 
 ## AI Agent: `ask_question`
@@ -253,7 +245,7 @@ agent.py  ─ Ollama (tool-calling loop) ─ dispatches to any registered tool
 - **Report tools** (`reports.py`): Query local MongoDB for aggregated data. Run `sync_pco_data` to refresh.
 - **Sync** (`sync.py`): Incremental by default — only fetches records updated since the last sync.
 - **Agent** (`agent.py`): Accepts a natural language question, builds an Ollama tool-calling loop over 30 curated read-only tools, and returns a plain-text answer.
-- **AI features** (`llm.py`): Optional. Enables semantic search for prophecies via `nomic-embed-text` embeddings.
+- **AI features** (`llm.py`): Optional. Enables AI-generated summaries via Ollama.
 
 ---
 

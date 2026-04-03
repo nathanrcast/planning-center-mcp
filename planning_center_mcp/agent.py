@@ -42,7 +42,6 @@ AGENT_TOOL_NAMES = {
     "service_plan_report",
     "song_detail_report",
     "upcoming_services_report",
-    "search_prophecies",
     "get_sync_status",
 }
 
