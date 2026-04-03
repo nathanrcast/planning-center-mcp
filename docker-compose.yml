@@ -9,6 +9,8 @@ services:
       - .env
     environment:
       - MONGO_URI=mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@mongo:27017/planning_center?authSource=admin
+      - OLLAMA_URL=${OLLAMA_URL:-http://192.168.1.13:11434}
+      - AGENT_MODEL=${AGENT_MODEL:-mistral-small3.1}
     depends_on:
       mongo:
         condition: service_healthy

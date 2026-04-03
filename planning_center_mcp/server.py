@@ -8,6 +8,7 @@ from fastmcp import FastMCP
 from pymongo import MongoClient, ASCENDING, TEXT
 from pypco import PCO
 
+from planning_center_mcp.agent import register_agent_tool
 from planning_center_mcp.reports import register_report_tools
 from planning_center_mcp.services import register_tools
 from planning_center_mcp.sync import SyncManager
@@ -31,6 +32,7 @@ sync_mgr = SyncManager(db, pco)
 
 register_tools(mcp, pco)
 register_report_tools(mcp, db, sync_mgr)
+register_agent_tool(mcp)
 
 
 def _ensure_indexes():
