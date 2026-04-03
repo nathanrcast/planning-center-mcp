@@ -1,3 +1,4 @@
+import math
 import re
 from datetime import datetime, timezone, timedelta
 
@@ -479,3 +480,122 @@ def song_key_usage(db: Database, months: int = 6,
     ]
     return list(db.plans.aggregate(pipeline))
 
+
+
+# ── Prophecy queries (used by church-tools api.py, not exposed as MCP tools) ──
+
+
+def _prophecy_doc(s: dict, include_email: bool = False) -> dict:
+    doc = {
+        "id": str(s["_id"]),
+        "title": s["title"],
+        "content": s["content"],
+        "author_name": s.get("author_name", ""),
+        "author_type": s.get("author_type", "congregation"),
+        "tags": s.get("tags", []),
+        "status": s.get("status", "pending"),
+        "submitted_at": s.get("submitted_at"),
+        "approved_at": s.get("approved_at"),
+        "approved_by": s.get("approved_by"),
+    }
+    if include_email:
+        doc["author_email"] = s.get("author_email", "")
+    return doc
+
+
+def list_prophecies(
+    db: Database,
+    status: str | None = None,
+    tag: str | None = None,
+    page: int = 1,
+    per_page: int = 20,
+    include_email: bool = False,
+) -> dict:
+    query: dict = {}
+    if status:
+        query["status"] = status
+    if tag:
+        query["tags"] = tag
+    total = db.stories.count_documents(query)
+    docs = list(
+        db.stories.find(query)
+        .sort("submitted_at", -1)
+        .skip((page - 1) * per_page)
+        .limit(per_page)
+    )
+    return {
+        "prophecies": [_prophecy_doc(d, include_email=include_email) for d in docs],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
+
+
+def get_prophecy(db: Database, prophecy_id: str, include_email: bool = False) -> dict | None:
+    from bson import ObjectId
+    try:
+        doc = db.stories.find_one({"_id": ObjectId(prophecy_id)})
+    except Exception:
+        return None
+    return _prophecy_doc(doc, include_email=include_email) if doc else None
+
+
+def search_prophecies_keyword(
+    db: Database,
+    query: str,
+    tag: str | None = None,
+    status: str = "approved",
+    include_email: bool = False,
+) -> list[dict]:
+    match: dict = {"$text": {"$search": query}, "status": status}
+    if tag:
+        match["tags"] = tag
+    pipeline = [
+        {"$match": match},
+        {"$addFields": {"score": {"$meta": "textScore"}}},
+        {"$sort": {"score": -1}},
+        {"$limit": 50},
+    ]
+    return [_prophecy_doc(d, include_email=include_email) for d in db.stories.aggregate(pipeline)]
+
+
+def _cosine_similarity(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
+def search_prophecies_semantic(
+    db: Database,
+    query_embedding: list[float],
+    top_k: int = 10,
+    status: str = "approved",
+    include_email: bool = False,
+) -> list[dict]:
+    embedding_docs = db.stories.find(
+        {"status": status, "embedding": {"$exists": True, "$ne": None}},
+        {"embedding": 1},
+    )
+    scored = []
+    for d in embedding_docs:
+        sim = _cosine_similarity(query_embedding, d["embedding"])
+        scored.append((sim, d["_id"]))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top = scored[:top_k]
+    if not top:
+        return []
+    top_ids = [doc_id for _, doc_id in top]
+    sim_by_id = {doc_id: sim for sim, doc_id in top}
+    full_docs = {d["_id"]: d for d in db.stories.find({"_id": {"$in": top_ids}})}
+    return [
+        {**_prophecy_doc(full_docs[doc_id], include_email=include_email), "similarity": round(sim_by_id[doc_id], 4)}
+        for doc_id in top_ids
+        if doc_id in full_docs
+    ]
+
+
+def prophecy_tags(db: Database) -> list[str]:
+    return sorted(t for t in db.stories.distinct("tags") if t)
