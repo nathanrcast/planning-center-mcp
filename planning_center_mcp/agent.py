@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.13:11434")
 AGENT_MODEL = os.getenv("AGENT_MODEL", "mistral-small3.1")
 MAX_ITERATIONS = 10
-OLLAMA_TIMEOUT = 120.0
+OLLAMA_TIMEOUT = 180.0
 MAX_TOOL_RESULT_CHARS = 8000
 
 AGENT_TOOL_NAMES = {
