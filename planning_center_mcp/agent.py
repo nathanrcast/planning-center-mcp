@@ -29,6 +29,7 @@ AGENT_TOOL_NAMES = {
     "get_team_names",
     "song_usage_report",
     "song_key_usage_report",
+    "person_song_keys_report",
     "volunteer_activity_report",
     "service_plan_report",
     "song_detail_report",
@@ -48,6 +49,7 @@ Rules:
 - For service/plan lookups, call get_service_types first to get the service type IDs.
 - For song key questions about a specific song (e.g. "what key is this song usually played in?"), call song_detail_report — it includes key_name per schedule entry. Count occurrences to find the most common key.
 - For aggregate key questions (e.g. "what are the most popular keys?", "what key is used most often?"), call song_key_usage_report — it returns keys ranked by frequency across all songs in a time period.
+- For person-specific key questions (e.g. "what keys does [name] play in?", "what keys when [name] is worship leader?"), call person_song_keys_report with person_name and optionally role.
 - Keep answers concise. Use bullet points or short tables for lists.
 - If you cannot find the requested information, say so clearly.
 - Only pass parameters that are explicitly listed in the tool's parameter schema. Never invent parameters.

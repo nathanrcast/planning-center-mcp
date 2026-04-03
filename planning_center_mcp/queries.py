@@ -207,6 +207,33 @@ def sync_status(db: Database) -> dict:
     return {"last_sync": meta["timestamp"] if meta else None}
 
 
+def person_song_keys(db: Database, person_name: str,
+                     role: str | None = None,
+                     months: int | None = None) -> dict:
+    member_filter: dict = {"name": {"$regex": re.escape(person_name), "$options": "i"}}
+    if role:
+        member_filter["position_name"] = {"$regex": re.escape(role), "$options": "i"}
+
+    match: dict = {"team_members": {"$elemMatch": member_filter}}
+    if months:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=months * 30)).isoformat()
+        match["sort_date"] = {"$gte": cutoff}
+
+    pipeline = [
+        {"$match": match},
+        {"$unwind": "$items"},
+        {"$match": {
+            "items.song_id": {"$ne": None},
+            "items.key_name": {"$nin": [None, ""]},
+        }},
+        {"$group": {"_id": "$items.key_name", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$project": {"_id": 0, "key": "$_id", "count": 1}},
+    ]
+    keys = list(db.plans.aggregate(pipeline))
+    return {"person": person_name, "role": role, "keys": keys}
+
+
 def song_key_usage(db: Database, months: int = 6,
                    start_date: str | None = None,
                    end_date: str | None = None) -> list[dict]:

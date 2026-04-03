@@ -4,6 +4,7 @@ from planning_center_mcp.llm import embed
 from planning_center_mcp.queries import (
     song_usage,
     song_key_usage,
+    person_song_keys,
     volunteer_activity,
     service_plans,
     song_detail,
@@ -68,6 +69,18 @@ def register_report_tools(mcp: object, db: Database, sync_mgr: SyncManager):
         if not result:
             return f"No song found matching '{title}'."
         return result
+
+    @mcp.tool
+    def person_song_keys_report(
+        person_name: str,
+        role: str | None = None,
+        months: int | None = None,
+    ) -> dict:
+        """Keys used in plans where a specific person served, ranked by frequency.
+        Optionally filter by role (e.g. 'Guitar', 'Worship Leader') and number of months.
+        Use this for questions like 'what keys does [name] play in?' or
+        'what keys are used when [name] is worship leader?'"""
+        return person_song_keys(db, person_name, role=role, months=months)
 
     @mcp.tool
     def song_key_usage_report(
