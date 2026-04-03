@@ -46,6 +46,7 @@ Rules:
 - For service/plan lookups, call get_service_types first to get the service type IDs.
 - Keep answers concise. Use bullet points or short tables for lists.
 - If you cannot find the requested information, say so clearly.
+- Only pass parameters that are explicitly listed in the tool's parameter schema. Never invent parameters.
 - Today is {today}.
 """
 
