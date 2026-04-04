@@ -127,7 +127,7 @@ async def ask(question, mcp_server, ollama_url=None, model=None, max_iterations=
                 "tools": ollama_tools,
                 "stream": False,
                 "think": False,
-                "options": {"num_predict": 512, "num_ctx": 4096},
+                "options": {"num_predict": 1024, "num_ctx": 8192},
             }
 
             try:
