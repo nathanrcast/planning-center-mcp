@@ -77,12 +77,13 @@ def register_report_tools(mcp: object, db: Database, sync_mgr: SyncManager):
         person_name: str,
         role: str | None = None,
         months: int | None = None,
+        song_title: str | None = None,
     ) -> dict:
         """Keys used in plans where a specific person served, ranked by frequency.
-        Optionally filter by role (e.g. 'Guitar', 'Worship Leader') and number of months.
-        Use this for questions like 'what keys does [name] play in?' or
-        'what keys are used when [name] is worship leader?'"""
-        return person_song_keys(db, person_name, role=role, months=months)
+        Pass song_title to filter to a specific song (e.g. 'what key does [name] play [song] in?').
+        Omit song_title for general key profile (e.g. 'what keys does [name] play in?').
+        Optionally filter by role (e.g. 'Guitar', 'Worship Leader') and number of months."""
+        return person_song_keys(db, person_name, role=role, months=months, song_title=song_title)
 
     @mcp.tool
     def person_song_preferences_report(
