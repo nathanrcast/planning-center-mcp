@@ -8,41 +8,36 @@ import httpx
 log = logging.getLogger(__name__)
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.13:11434")
-AGENT_MODEL = os.getenv("AGENT_MODEL", "mistral-small3.1")
-MAX_ITERATIONS = 10
+AGENT_MODEL = os.getenv("AGENT_MODEL", "qwen3.5:9b")
+MAX_ITERATIONS = 6
 OLLAMA_TIMEOUT = 180.0
 MAX_TOOL_RESULT_CHARS = 8000
 
 AGENT_TOOL_NAMES = {
+    # Live PCO API — only where no cached equivalent exists
     "get_service_types",
-    "get_plans",
-    "get_plan_details",
-    "get_songs",
-    "get_song",
-    "get_song_schedules",
-    "get_arrangements",
     "get_song_tags",
     "find_songs_by_tags",
     "search_people",
     "get_person",
-    "get_person_field_data",
+    # Cached report tools
     "get_team_names",
+    "get_sync_status",
     "song_usage_report",
+    "song_detail_report",
     "song_key_usage_report",
-    "person_song_keys_report",
-    "person_song_preferences_report",
-    "songs_not_played_report",
     "songs_by_key_report",
+    "songs_not_played_report",
     "songs_played_together_report",
+    "song_retirement_report",
+    "service_plan_report",
     "service_position_report",
     "service_bpm_flow_report",
-    "song_retirement_report",
-    "volunteer_decline_report",
-    "volunteer_activity_report",
-    "service_plan_report",
-    "song_detail_report",
     "upcoming_services_report",
-    "get_sync_status",
+    "volunteer_activity_report",
+    "volunteer_decline_report",
+    "person_song_keys_report",
+    "person_song_preferences_report",
 }
 
 SYSTEM_PROMPT = """\
@@ -131,7 +126,7 @@ async def ask(question, mcp_server, ollama_url=None, model=None, max_iterations=
                 "tools": ollama_tools,
                 "stream": False,
                 "think": False,
-                "options": {"num_predict": 2048},
+                "options": {"num_predict": 512, "num_ctx": 4096},
             }
 
             try:
