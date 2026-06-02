@@ -155,6 +155,7 @@ class SyncManager:
 
             arrangements = self._fetch_song_arrangements(song_id)
             schedules = self._fetch_song_schedules(song_id)
+            tags = self._fetch_song_tags(song_id)
 
             self.db.songs.update_one(
                 {"_id": song_id},
@@ -168,6 +169,7 @@ class SyncManager:
                     "last_scheduled_at": attrs.get("last_scheduled_at"),
                     "arrangements": arrangements,
                     "schedules": schedules,
+                    "tags": tags,
                     "raw_attributes": attrs,
                 }},
                 upsert=True,
@@ -188,6 +190,14 @@ class SyncManager:
                 "has_chords": attrs.get("has_chords"),
             })
         return arrangements
+
+    def _fetch_song_tags(self, song_id: str) -> list:
+        tags = []
+        for tag in self.pco.iterate(f"/services/v2/songs/{song_id}/tags"):
+            name = tag["data"]["attributes"].get("name")
+            if name:
+                tags.append(name)
+        return tags
 
     def _fetch_song_schedules(self, song_id: str) -> list:
         schedules = []

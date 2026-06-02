@@ -8,7 +8,8 @@ DECLINED = ["D", "declined"]
 
 
 def song_usage(db: Database, months: int = 3, service_type_ids: list[str] | None = None,
-               start_date: str | None = None, end_date: str | None = None) -> list[dict]:
+               start_date: str | None = None, end_date: str | None = None,
+               tags: list[str] | None = None) -> list[dict]:
     if start_date and end_date:
         cutoff, now = start_date, end_date
     else:
@@ -19,24 +20,36 @@ def song_usage(db: Database, months: int = 3, service_type_ids: list[str] | None
     if service_type_ids:
         match_filter["service_type_id"] = {"$in": service_type_ids}
 
+    item_match = {"items.song_id": {"$ne": None}}
+    if tags:
+        tag_song_ids = db.songs.distinct("_id", {"tags": {"$in": tags}})
+        item_match["items.song_id"] = {"$ne": None, "$in": tag_song_ids}
+
     pipeline = [
         {"$match": match_filter},
         {"$unwind": "$items"},
-        {"$match": {"items.song_id": {"$ne": None}}},
+        {"$match": item_match},
         {"$group": {
             "_id": {"$toLower": "$items.title"},
             "title": {"$first": "$items.title"},
+            "song_id": {"$first": "$items.song_id"},
             "count": {"$sum": 1},
             "last_played": {"$max": "$sort_date"},
         }},
         {"$sort": {"count": -1}},
     ]
     results = list(db.plans.aggregate(pipeline))
+    song_ids = [r["song_id"] for r in results if r.get("song_id")]
+    tag_map = {
+        s["_id"]: s.get("tags", [])
+        for s in db.songs.find({"_id": {"$in": song_ids}}, {"tags": 1})
+    }
     return [
         {
             "title": r["title"],
             "count": r["count"],
             "last_played": r["last_played"][:10] if r.get("last_played") else None,
+            "tags": tag_map.get(r.get("song_id"), []),
         }
         for r in results
     ]
@@ -85,6 +98,10 @@ def team_names_list(db: Database) -> list[str]:
     return sorted(
         name for name in db.plans.distinct("team_members.team_name") if name
     )
+
+
+def song_tags_list(db: Database) -> list[str]:
+    return sorted(t for t in db.songs.distinct("tags") if t)
 
 
 def service_plans(db: Database, service_type_name: str, count: int = 5) -> list[dict]:
@@ -147,6 +164,7 @@ def song_detail(db: Database, title: str) -> dict | None:
         "title": song["title"],
         "author": song.get("author"),
         "ccli_number": song.get("ccli_number"),
+        "tags": song.get("tags", []),
         "arrangements": [
             {
                 "name": a["name"],
