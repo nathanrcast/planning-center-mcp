@@ -19,6 +19,9 @@ Includes a built-in AI agent (`ask_question`) that accepts natural language ques
 | `get_plan_items` | Get songs, headers, and media in a plan |
 | `get_plan_team_members` | Get volunteers assigned to a plan |
 | `get_plan_details` | Get items and team members in one call |
+| `create_plan_item` | Add a song, header, media, or generic item to a plan, optionally positioned by sequence |
+| `update_plan_item` | Update a plan item's title, song/arrangement/key, sequence, length, or description |
+| `delete_plan_item` | Remove an item from a plan |
 
 ### Songs & Arrangements
 | Tool | Description |

@@ -251,6 +251,63 @@ class TestCreatePerson:
         assert mock_pco.post.call_count == 3
 
 
+class TestCreatePlanItem:
+    def test_song_item_with_position(self):
+        mock_pco = MagicMock()
+        mock_pco.template.return_value = {
+            "data": {"type": "Item", "attributes": {"item_type": "song", "song_id": "42", "sequence": 5}}
+        }
+        mock_pco.post.return_value = {
+            "data": {"id": "999", "attributes": {"item_type": "song", "title": "Our God", "sequence": 5}}
+        }
+        tools = _register_and_get_tools(mock_pco)
+        result = tools["create_plan_item"](
+            plan_id="1", item_type="song", song_id="42", sequence=5
+        )
+        mock_pco.template.assert_called_once_with(
+            "Item", {"item_type": "song", "song_id": "42", "sequence": 5}
+        )
+        mock_pco.post.assert_called_once_with("/services/v2/plans/1/items", mock_pco.template.return_value)
+        assert result["id"] == "999"
+        assert result["title"] == "Our God"
+
+    def test_header_item_defaults(self):
+        mock_pco = MagicMock()
+        mock_pco.template.return_value = {"data": {"type": "Item", "attributes": {"item_type": "header", "title": "Worship"}}}
+        mock_pco.post.return_value = {"data": {"id": "1", "attributes": {"item_type": "header", "title": "Worship"}}}
+        tools = _register_and_get_tools(mock_pco)
+        tools["create_plan_item"](plan_id="1", item_type="header", title="Worship")
+        mock_pco.template.assert_called_once_with("Item", {"item_type": "header", "title": "Worship"})
+
+
+class TestUpdatePlanItem:
+    def test_partial_update(self):
+        mock_pco = MagicMock()
+        mock_pco.template.return_value = {"data": {"type": "Item", "attributes": {"sequence": 6}}}
+        mock_pco.patch.return_value = {"data": {"id": "999", "attributes": {"sequence": 6}}}
+        tools = _register_and_get_tools(mock_pco)
+        result = tools["update_plan_item"](plan_id="1", item_id="999", sequence=6)
+        mock_pco.template.assert_called_once_with("Item", {"sequence": 6})
+        mock_pco.patch.assert_called_once_with("/services/v2/plans/1/items/999", mock_pco.template.return_value)
+        assert result["sequence"] == 6
+
+    def test_no_fields_error(self):
+        mock_pco = MagicMock()
+        tools = _register_and_get_tools(mock_pco)
+        result = tools["update_plan_item"](plan_id="1", item_id="999")
+        assert result == {"error": "No fields provided to update."}
+        mock_pco.patch.assert_not_called()
+
+
+class TestDeletePlanItem:
+    def test_deletes_and_confirms(self):
+        mock_pco = MagicMock()
+        tools = _register_and_get_tools(mock_pco)
+        result = tools["delete_plan_item"](plan_id="1", item_id="999")
+        mock_pco.delete.assert_called_once_with("/services/v2/plans/1/items/999")
+        assert result == "Deleted item 999 from plan 1"
+
+
 class TestGetPersonFieldData:
     def test_merges_field_definitions(self):
         mock_pco = MagicMock()

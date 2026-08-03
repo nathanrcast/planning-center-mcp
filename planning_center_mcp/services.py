@@ -107,6 +107,84 @@ def register_tools(mcp: object, pco: PCO):
 
     @mcp.tool
     @_pco_error_handler
+    def create_plan_item(
+        plan_id: str,
+        item_type: str = "item",
+        title: str = None,
+        song_id: str = None,
+        arrangement_id: str = None,
+        key_id: str = None,
+        sequence: int = None,
+        length: int = None,
+        description: str = None,
+    ) -> dict:
+        """Add an item to a plan. item_type is 'song', 'header', 'media', or 'item'.
+        For songs, pass song_id (and optionally arrangement_id/key_id) — title defaults
+        to the song's title if omitted. Pass sequence (1-based) to position it; later
+        items shift down. Omit sequence to append at the end of the plan."""
+        attrs = {"item_type": item_type}
+        if title is not None:
+            attrs["title"] = title
+        if song_id is not None:
+            attrs["song_id"] = song_id
+        if arrangement_id is not None:
+            attrs["arrangement_id"] = arrangement_id
+        if key_id is not None:
+            attrs["key_id"] = key_id
+        if sequence is not None:
+            attrs["sequence"] = sequence
+        if length is not None:
+            attrs["length"] = length
+        if description is not None:
+            attrs["description"] = description
+        payload = pco.template("Item", attrs)
+        response = pco.post(f"/services/v2/plans/{plan_id}/items", payload)
+        return slim_response(response["data"])
+
+    @mcp.tool
+    @_pco_error_handler
+    def update_plan_item(
+        plan_id: str,
+        item_id: str,
+        title: str = None,
+        song_id: str = None,
+        arrangement_id: str = None,
+        key_id: str = None,
+        sequence: int = None,
+        length: int = None,
+        description: str = None,
+    ) -> dict:
+        """Update a plan item's attributes. Only provided fields are changed."""
+        attrs = {}
+        if title is not None:
+            attrs["title"] = title
+        if song_id is not None:
+            attrs["song_id"] = song_id
+        if arrangement_id is not None:
+            attrs["arrangement_id"] = arrangement_id
+        if key_id is not None:
+            attrs["key_id"] = key_id
+        if sequence is not None:
+            attrs["sequence"] = sequence
+        if length is not None:
+            attrs["length"] = length
+        if description is not None:
+            attrs["description"] = description
+        if not attrs:
+            return {"error": "No fields provided to update."}
+        payload = pco.template("Item", attrs)
+        response = pco.patch(f"/services/v2/plans/{plan_id}/items/{item_id}", payload)
+        return slim_response(response["data"])
+
+    @mcp.tool
+    @_pco_error_handler
+    def delete_plan_item(plan_id: str, item_id: str) -> str:
+        """Remove an item (song, header, or media) from a plan."""
+        pco.delete(f"/services/v2/plans/{plan_id}/items/{item_id}")
+        return f"Deleted item {item_id} from plan {plan_id}"
+
+    @mcp.tool
+    @_pco_error_handler
     def get_songs(page: int = 1, per_page: int = 100) -> dict:
         """Paginated song library listing."""
         offset = (page - 1) * per_page
