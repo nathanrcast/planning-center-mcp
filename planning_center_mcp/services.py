@@ -139,6 +139,10 @@ def register_tools(mcp: object, pco: PCO):
         For songs, pass song_id (and optionally arrangement_id/key_id) — title defaults
         to the song's title if omitted. Pass sequence (1-based) to position it; later
         items shift down. Omit sequence to append at the end of the plan."""
+        if title is None and song_id is not None:
+            # PCO links the song but leaves the item titled "New Item".
+            song = pco.get(f"/services/v2/songs/{song_id}")
+            title = song["data"]["attributes"]["title"]
         attrs = {"item_type": item_type}
         if title is not None:
             attrs["title"] = title

@@ -251,12 +251,18 @@ class TestCreatePerson:
         assert mock_pco.post.call_count == 3
 
 
-def _mock_pco_with_service_type(service_type_id="7"):
-    """A mock whose plan lookup resolves the service type, as PCO does."""
+def _mock_pco_with_service_type(service_type_id="7", song_title="Song Title"):
+    """A mock that answers plan and song lookups the way PCO does."""
     mock_pco = MagicMock()
-    mock_pco.get.return_value = {
-        "data": {"relationships": {"service_type": {"data": {"type": "ServiceType", "id": service_type_id}}}}
-    }
+
+    def _get(url, **kwargs):
+        if "/songs/" in url:
+            return {"data": {"id": "42", "attributes": {"title": song_title}}}
+        return {
+            "data": {"relationships": {"service_type": {"data": {"type": "ServiceType", "id": service_type_id}}}}
+        }
+
+    mock_pco.get.side_effect = _get
     return mock_pco
 
 
@@ -274,7 +280,7 @@ class TestCreatePlanItem:
             plan_id="1", item_type="song", song_id="42", sequence=5
         )
         mock_pco.template.assert_called_once_with(
-            "Item", {"item_type": "song", "song_id": "42", "sequence": 5}
+            "Item", {"item_type": "song", "title": "Song Title", "song_id": "42", "sequence": 5}
         )
         mock_pco.post.assert_called_once_with(
             "/services/v2/service_types/7/plans/1/items", mock_pco.template.return_value
@@ -289,6 +295,23 @@ class TestCreatePlanItem:
         tools = _register_and_get_tools(mock_pco)
         tools["create_plan_item"](plan_id="1", item_type="header", title="Worship")
         mock_pco.template.assert_called_once_with("Item", {"item_type": "header", "title": "Worship"})
+
+    def test_song_title_defaults_to_song_title(self):
+        """PCO links the song but titles the item "New Item"."""
+        mock_pco = _mock_pco_with_service_type(song_title="Reckless Love")
+        mock_pco.post.return_value = {"data": {"id": "999", "attributes": {}}}
+        tools = _register_and_get_tools(mock_pco)
+        tools["create_plan_item"](plan_id="1", item_type="song", song_id="42")
+        attrs = mock_pco.template.call_args[0][1]
+        assert attrs["title"] == "Reckless Love"
+
+    def test_explicit_title_is_not_overridden(self):
+        mock_pco = _mock_pco_with_service_type()
+        mock_pco.post.return_value = {"data": {"id": "999", "attributes": {}}}
+        tools = _register_and_get_tools(mock_pco)
+        tools["create_plan_item"](plan_id="1", item_type="song", song_id="42", title="Custom")
+        attrs = mock_pco.template.call_args[0][1]
+        assert attrs["title"] == "Custom"
 
     def test_never_posts_to_redirecting_shortcut(self):
         """The /plans/{id}/items shortcut 302s and downgrades POST to GET."""
