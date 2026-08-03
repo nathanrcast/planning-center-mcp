@@ -251,9 +251,18 @@ class TestCreatePerson:
         assert mock_pco.post.call_count == 3
 
 
+def _mock_pco_with_service_type(service_type_id="7"):
+    """A mock whose plan lookup resolves the service type, as PCO does."""
+    mock_pco = MagicMock()
+    mock_pco.get.return_value = {
+        "data": {"relationships": {"service_type": {"data": {"type": "ServiceType", "id": service_type_id}}}}
+    }
+    return mock_pco
+
+
 class TestCreatePlanItem:
     def test_song_item_with_position(self):
-        mock_pco = MagicMock()
+        mock_pco = _mock_pco_with_service_type()
         mock_pco.template.return_value = {
             "data": {"type": "Item", "attributes": {"item_type": "song", "song_id": "42", "sequence": 5}}
         }
@@ -267,32 +276,53 @@ class TestCreatePlanItem:
         mock_pco.template.assert_called_once_with(
             "Item", {"item_type": "song", "song_id": "42", "sequence": 5}
         )
-        mock_pco.post.assert_called_once_with("/services/v2/plans/1/items", mock_pco.template.return_value)
+        mock_pco.post.assert_called_once_with(
+            "/services/v2/service_types/7/plans/1/items", mock_pco.template.return_value
+        )
         assert result["id"] == "999"
         assert result["title"] == "Our God"
 
     def test_header_item_defaults(self):
-        mock_pco = MagicMock()
+        mock_pco = _mock_pco_with_service_type()
         mock_pco.template.return_value = {"data": {"type": "Item", "attributes": {"item_type": "header", "title": "Worship"}}}
         mock_pco.post.return_value = {"data": {"id": "1", "attributes": {"item_type": "header", "title": "Worship"}}}
         tools = _register_and_get_tools(mock_pco)
         tools["create_plan_item"](plan_id="1", item_type="header", title="Worship")
         mock_pco.template.assert_called_once_with("Item", {"item_type": "header", "title": "Worship"})
 
+    def test_never_posts_to_redirecting_shortcut(self):
+        """The /plans/{id}/items shortcut 302s and downgrades POST to GET."""
+        mock_pco = _mock_pco_with_service_type()
+        mock_pco.post.return_value = {"data": {"id": "1", "attributes": {}}}
+        tools = _register_and_get_tools(mock_pco)
+        tools["create_plan_item"](plan_id="1", item_type="header", title="Worship")
+        url = mock_pco.post.call_args[0][0]
+        assert url.startswith("/services/v2/service_types/")
+
+    def test_service_type_lookup_is_cached_per_plan(self):
+        mock_pco = _mock_pco_with_service_type()
+        mock_pco.post.return_value = {"data": {"id": "1", "attributes": {}}}
+        tools = _register_and_get_tools(mock_pco)
+        tools["create_plan_item"](plan_id="1", item_type="header", title="A")
+        tools["create_plan_item"](plan_id="1", item_type="header", title="B")
+        assert mock_pco.get.call_count == 1
+
 
 class TestUpdatePlanItem:
     def test_partial_update(self):
-        mock_pco = MagicMock()
+        mock_pco = _mock_pco_with_service_type()
         mock_pco.template.return_value = {"data": {"type": "Item", "attributes": {"sequence": 6}}}
         mock_pco.patch.return_value = {"data": {"id": "999", "attributes": {"sequence": 6}}}
         tools = _register_and_get_tools(mock_pco)
         result = tools["update_plan_item"](plan_id="1", item_id="999", sequence=6)
         mock_pco.template.assert_called_once_with("Item", {"sequence": 6})
-        mock_pco.patch.assert_called_once_with("/services/v2/plans/1/items/999", mock_pco.template.return_value)
+        mock_pco.patch.assert_called_once_with(
+            "/services/v2/service_types/7/plans/1/items/999", mock_pco.template.return_value
+        )
         assert result["sequence"] == 6
 
     def test_no_fields_error(self):
-        mock_pco = MagicMock()
+        mock_pco = _mock_pco_with_service_type()
         tools = _register_and_get_tools(mock_pco)
         result = tools["update_plan_item"](plan_id="1", item_id="999")
         assert result == {"error": "No fields provided to update."}
@@ -301,10 +331,10 @@ class TestUpdatePlanItem:
 
 class TestDeletePlanItem:
     def test_deletes_and_confirms(self):
-        mock_pco = MagicMock()
+        mock_pco = _mock_pco_with_service_type()
         tools = _register_and_get_tools(mock_pco)
         result = tools["delete_plan_item"](plan_id="1", item_id="999")
-        mock_pco.delete.assert_called_once_with("/services/v2/plans/1/items/999")
+        mock_pco.delete.assert_called_once_with("/services/v2/service_types/7/plans/1/items/999")
         assert result == "Deleted item 999 from plan 1"
 
 

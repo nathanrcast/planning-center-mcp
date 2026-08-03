@@ -105,6 +105,23 @@ def register_tools(mcp: object, pco: PCO):
             "team_members": slim_response(team_resp["data"]),
         }
 
+    _service_type_ids = {}
+
+    def _plan_items_url(plan_id: str) -> str:
+        """Canonical nested URL for a plan's items.
+
+        The /services/v2/plans/{id}/items shortcut 302-redirects here, and a
+        redirected POST/PATCH is downgraded to GET — the write is silently
+        dropped and the item collection comes back instead. Writes must use
+        this URL directly.
+        """
+        service_type_id = _service_type_ids.get(plan_id)
+        if service_type_id is None:
+            plan = pco.get(f"/services/v2/plans/{plan_id}")
+            service_type_id = plan["data"]["relationships"]["service_type"]["data"]["id"]
+            _service_type_ids[plan_id] = service_type_id
+        return f"/services/v2/service_types/{service_type_id}/plans/{plan_id}/items"
+
     @mcp.tool
     @_pco_error_handler
     def create_plan_item(
@@ -138,7 +155,7 @@ def register_tools(mcp: object, pco: PCO):
         if description is not None:
             attrs["description"] = description
         payload = pco.template("Item", attrs)
-        response = pco.post(f"/services/v2/plans/{plan_id}/items", payload)
+        response = pco.post(_plan_items_url(plan_id), payload)
         return slim_response(response["data"])
 
     @mcp.tool
@@ -173,14 +190,14 @@ def register_tools(mcp: object, pco: PCO):
         if not attrs:
             return {"error": "No fields provided to update."}
         payload = pco.template("Item", attrs)
-        response = pco.patch(f"/services/v2/plans/{plan_id}/items/{item_id}", payload)
+        response = pco.patch(f"{_plan_items_url(plan_id)}/{item_id}", payload)
         return slim_response(response["data"])
 
     @mcp.tool
     @_pco_error_handler
     def delete_plan_item(plan_id: str, item_id: str) -> str:
         """Remove an item (song, header, or media) from a plan."""
-        pco.delete(f"/services/v2/plans/{plan_id}/items/{item_id}")
+        pco.delete(f"{_plan_items_url(plan_id)}/{item_id}")
         return f"Deleted item {item_id} from plan {plan_id}"
 
     @mcp.tool
