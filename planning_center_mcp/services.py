@@ -84,7 +84,7 @@ def register_tools(mcp: object, pco: PCO):
     @_pco_error_handler
     def get_plan_items(plan_id: str) -> list:
         """Get songs, headers, and media in a plan."""
-        response = pco.get(f"/services/v2/plans/{plan_id}/items")
+        response = pco.get(f"/services/v2/plans/{plan_id}/items", per_page=100)
         return slim_response(response["data"])
 
     @mcp.tool
@@ -98,8 +98,8 @@ def register_tools(mcp: object, pco: PCO):
     @_pco_error_handler
     def get_plan_details(plan_id: str) -> dict:
         """Get a plan's items and team members in one call."""
-        items_resp = pco.get(f"/services/v2/plans/{plan_id}/items")
-        team_resp = pco.get(f"/services/v2/plans/{plan_id}/team_members")
+        items_resp = pco.get(f"/services/v2/plans/{plan_id}/items", per_page=100)
+        team_resp = pco.get(f"/services/v2/plans/{plan_id}/team_members", per_page=100)
         return {
             "items": slim_response(items_resp["data"]),
             "team_members": slim_response(team_resp["data"]),

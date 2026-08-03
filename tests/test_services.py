@@ -266,6 +266,16 @@ def _mock_pco_with_service_type(service_type_id="7", song_title="Song Title"):
     return mock_pco
 
 
+class TestGetPlanItems:
+    def test_requests_a_full_page(self):
+        """PCO defaults to 25 per page, silently truncating longer plans."""
+        mock_pco = MagicMock()
+        mock_pco.get.return_value = {"data": []}
+        tools = _register_and_get_tools(mock_pco)
+        tools["get_plan_items"](plan_id="1")
+        assert mock_pco.get.call_args.kwargs["per_page"] == 100
+
+
 class TestCreatePlanItem:
     def test_song_item_with_position(self):
         mock_pco = _mock_pco_with_service_type()
