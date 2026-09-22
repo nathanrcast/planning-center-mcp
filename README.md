@@ -70,6 +70,8 @@ Includes a built-in AI agent (`ask_question`) that accepts natural language ques
 | `songs_played_together_report` | Songs most frequently paired with a given song in the same service |
 | `song_retirement_report` | Songs that were played frequently in an older window but have since dropped off |
 | `service_bpm_flow_report` | Tempo (BPM) and key progression across recent services, in song order |
+| `search_lyrics_report` | Songs whose lyrics or themes contain any of the given terms (word-prefix match: `joy` finds `joyful`), with the matching lines |
+| `get_songs_missing_lyrics` | Songs with no lyrics stored — these can never match a lyric search |
 
 **Service Plans**
 | Tool | Description |
