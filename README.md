@@ -39,7 +39,6 @@ Includes a built-in AI agent (`ask_question`) that accepts natural language ques
 |------|-------------|
 | `get_song_tags` | List all available song tags by group |
 | `assign_tags_to_song` | Tag a song by tag name |
-| `find_songs_by_tags` | Find songs matching tags (AND logic) |
 
 ### File Visibility (Attachment Types)
 | Tool | Description |
@@ -72,6 +71,7 @@ Includes a built-in AI agent (`ask_question`) that accepts natural language ques
 | `service_bpm_flow_report` | Tempo (BPM) and key progression across recent services, in song order |
 | `search_lyrics_report` | Songs whose lyrics or themes contain any of the given terms (word-prefix match: `joy` finds `joyful`), with the matching lines |
 | `get_songs_missing_lyrics` | Songs with no lyrics stored — these can never match a lyric search |
+| `find_songs_by_tags` | Songs carrying all the given tags, or any of them with `match_all=False` |
 
 **Service Plans**
 | Tool | Description |
@@ -248,6 +248,7 @@ agent.py  ─ Ollama (tool-calling loop) ─ dispatches to any registered tool
 
 - **Direct tools** (`services.py`): Hit the PCO API live. No cache needed.
 - **Report tools** (`reports.py`): Query local MongoDB for aggregated data. Run `sync_pco_data` to refresh.
+- **Lyrics**: sync stores each arrangement's lyrics from PCO, and the slide text of the song's ProPresenter `.pro` attachment (`propresenter.py` reads the RTF blocks inside the protobuf). `search_lyrics_report` covers both and says which matched. A `.pro` is re-downloaded only when PCO reports it changed.
 - **Sync** (`sync.py`): Incremental by default — only fetches records updated since the last sync.
 - **Agent** (`agent.py`): Accepts a natural language question, builds an Ollama tool-calling loop over 30 curated read-only tools, and returns a plain-text answer.
 - **AI features** (`llm.py`): Optional. Enables AI-generated summaries via Ollama.
