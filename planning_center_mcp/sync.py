@@ -7,7 +7,7 @@ import requests
 from pymongo.database import Database
 from pypco import PCO
 
-from planning_center_mcp.propresenter import lyrics_from_pro
+from planning_center_mcp.propresenter import PARSER_VERSION, lyrics_from_pro
 
 log = logging.getLogger(__name__)
 
@@ -216,7 +216,8 @@ class SyncManager:
         attachment_id, attrs = attachment
         stored = (self.db.songs.find_one({"_id": song_id}, {"pro_lyrics": 1}) or {}).get("pro_lyrics")
         if (stored and stored.get("attachment_id") == attachment_id
-                and stored.get("updated_at") == attrs.get("updated_at")):
+                and stored.get("updated_at") == attrs.get("updated_at")
+                and stored.get("parser_version") == PARSER_VERSION):
             return stored
 
         try:
@@ -233,6 +234,7 @@ class SyncManager:
             "attachment_id": attachment_id,
             "filename": attrs.get("filename"),
             "updated_at": attrs.get("updated_at"),
+            "parser_version": PARSER_VERSION,
         }
 
     def _fetch_song_tags(self, song_id: str) -> list:

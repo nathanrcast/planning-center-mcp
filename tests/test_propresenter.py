@@ -34,5 +34,11 @@ class TestLyricsFromPro:
     def test_empty_template_yields_empty_string(self):
         assert lyrics_from_pro(_pro(rb"")) == ""
 
+    def test_strips_nested_list_tables(self):
+        nested = (rb"{\rtf0\ansi{\fonttbl\f0\fnil Futura;}"
+                  rb"{\*\listtable{\list\listid1{\listlevel\levelnfc23{\leveltext \'01\'b7;}}}}"
+                  rb"\uc1\pard\fs48 Dance the steps of joyful Zion}")
+        assert lyrics_from_pro(b"\x12\x08" + nested) == "Dance the steps of joyful Zion"
+
     def test_file_without_rtf_yields_empty_string(self):
         assert lyrics_from_pro(b"\n&\x08\x02no rtf here") == ""

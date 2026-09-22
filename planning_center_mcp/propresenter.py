@@ -7,10 +7,12 @@ ProPresenter schema, which Renewed Vision does not publish.
 
 import re
 
+# Bumped whenever extraction changes, so a sync re-reads files it already stored.
+PARSER_VERSION = 2
+
 _RTF_START = b"{\\rtf"
-_DROP_GROUPS = re.compile(
-    r"\{\\(?:\*|fonttbl|colortbl|stylesheet|listtable|listoverridetable)"
-    r"[^{}]*(\{[^{}]*\}[^{}]*)*\}"
+_SKIPPED_GROUP = re.compile(
+    r"\\(?:\*|fonttbl|colortbl|stylesheet|listtable|listoverridetable|info|pntext)"
 )
 _UNICODE_ESCAPE = re.compile(r"\\u(-?\d+)\s?\??")
 _HEX_ESCAPE = re.compile(r"\\'([0-9a-fA-F]{2})")
@@ -41,9 +43,42 @@ def _rtf_blocks(data: bytes) -> list[bytes]:
         i = j + 1
 
 
+def _drop_groups(text: str) -> str:
+    """Remove font, colour and list tables, and every other `{\\*...}` destination.
+
+    These nest — `{\\*\\listtable{\\list{\\listlevel...}}}` — so they are matched
+    by counting braces rather than with a regex.
+    """
+    out, i = [], 0
+    while i < len(text):
+        char = text[i]
+        if char == "\\" and i + 1 < len(text):
+            out.append(text[i:i + 2])
+            i += 2
+            continue
+        if char == "{" and _SKIPPED_GROUP.match(text, i + 1):
+            depth, j = 0, i
+            while j < len(text):
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == "{":
+                    depth += 1
+                elif text[j] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                j += 1
+            i = j + 1
+            continue
+        out.append(char)
+        i += 1
+    return "".join(out)
+
+
 def _rtf_to_text(rtf: bytes) -> str:
     text = rtf.decode("latin-1")
-    text = _DROP_GROUPS.sub("", text)
+    text = _drop_groups(text)
     text = _UNICODE_ESCAPE.sub(lambda m: chr(int(m.group(1)) % 65536), text)
     text = _LINE_BREAK.sub("\n", text)
     text = _HEX_ESCAPE.sub(
