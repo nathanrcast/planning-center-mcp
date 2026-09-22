@@ -188,6 +188,7 @@ class SyncManager:
                 "meter": attrs.get("meter"),
                 "length": attrs.get("length"),
                 "has_chords": attrs.get("has_chords"),
+                "lyrics": attrs.get("lyrics"),
             })
         return arrangements
 

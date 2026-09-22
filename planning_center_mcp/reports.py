@@ -17,6 +17,8 @@ from planning_center_mcp.queries import (
     song_detail,
     upcoming_services,
     team_names_list,
+    search_lyrics,
+    songs_missing_lyrics,
     sync_status,
 )
 from planning_center_mcp.sync import SyncManager
@@ -173,6 +175,33 @@ def register_report_tools(mcp: object, db: Database, sync_mgr: SyncManager):
     def get_team_names() -> list[str]:
         """All team names from synced data. Use for volunteer_activity_report filtering."""
         return team_names_list(db)
+
+    @mcp.tool
+    def search_lyrics_report(
+        terms: list[str],
+        exclude_tags: list[str] | None = None,
+        include_hidden: bool = False,
+        limit: int = 50,
+    ) -> dict:
+        """Find songs by words in their lyrics or themes.
+
+        Each term matches as a word prefix ("joy" finds "joyful", "rejoic" finds
+        "rejoicing"). Pass exclude_tags to drop categories such as ["Seasonal"].
+        Songs with no stored lyrics cannot match — get_songs_missing_lyrics lists them.
+        """
+        results = search_lyrics(db, terms, exclude_tags=exclude_tags,
+                                include_hidden=include_hidden, limit=limit)
+        return {
+            "terms": terms,
+            "songs": results,
+            "total": len(results),
+            "songs_without_lyrics": len(songs_missing_lyrics(db)),
+        }
+
+    @mcp.tool
+    def get_songs_missing_lyrics() -> list:
+        """Songs with no lyrics stored — the blind spot in any lyric search."""
+        return songs_missing_lyrics(db)
 
     @mcp.tool
     def get_sync_status() -> dict:

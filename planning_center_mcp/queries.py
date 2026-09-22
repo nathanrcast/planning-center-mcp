@@ -104,6 +104,66 @@ def song_tags_list(db: Database) -> list[str]:
     return sorted(t for t in db.songs.distinct("tags") if t)
 
 
+def search_lyrics(db: Database, terms: list[str], exclude_tags: list[str] | None = None,
+                  include_hidden: bool = False, limit: int = 50) -> list[dict]:
+    """Songs whose lyrics or themes contain any of `terms`.
+
+    Each term matches as a word prefix, so "joy" also finds "joyful" and
+    "rejoic" finds "rejoicing".
+    """
+    if not terms:
+        return []
+    pattern = re.compile(
+        r"\b(" + "|".join(re.escape(t) for t in terms) + r")\w*", re.IGNORECASE
+    )
+
+    query = {"$or": [
+        {"arrangements.lyrics": {"$regex": pattern}},
+        {"raw_attributes.themes": {"$regex": pattern}},
+    ]}
+    if exclude_tags:
+        query["tags"] = {"$nin": exclude_tags}
+    if not include_hidden:
+        query["raw_attributes.hidden"] = {"$ne": True}
+
+    results = []
+    for song in db.songs.find(query):
+        lines, count = [], 0
+        for arr in song.get("arrangements", []):
+            for line in (arr.get("lyrics") or "").splitlines():
+                hits = pattern.findall(line)
+                if not hits:
+                    continue
+                count += len(hits)
+                line = line.strip()
+                if line not in lines:
+                    lines.append(line)
+        results.append({
+            "song_id": song["_id"],
+            "title": song.get("title"),
+            "tags": song.get("tags", []),
+            "themes": (song.get("raw_attributes") or {}).get("themes"),
+            "match_count": count,
+            "matching_lines": lines[:10],
+        })
+
+    results.sort(key=lambda r: r["match_count"], reverse=True)
+    return results[:limit]
+
+
+def songs_missing_lyrics(db: Database) -> list[dict]:
+    """Songs with no lyrics stored — the blind spot in any lyric search."""
+    songs = db.songs.find(
+        {"arrangements": {"$not": {"$elemMatch": {"lyrics": {"$nin": [None, ""]}}}}},
+        {"title": 1, "tags": 1},
+    )
+    return sorted(
+        ({"song_id": s["_id"], "title": s.get("title"), "tags": s.get("tags", [])}
+         for s in songs),
+        key=lambda s: (s["title"] or "").lower(),
+    )
+
+
 def service_plans(db: Database, service_type_name: str, count: int = 5) -> list[dict]:
     now = datetime.now(timezone.utc).isoformat()
     plans = list(

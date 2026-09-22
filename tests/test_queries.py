@@ -8,28 +8,14 @@ from planning_center_mcp.queries import (
     upcoming_services,
     team_names_list,
     service_types_list,
+    search_lyrics,
+    songs_missing_lyrics,
     sync_status,
-    _cosine_similarity,
 )
 
 
 def _mock_db():
     return MagicMock()
-
-
-class TestCosineSimilarity:
-    def test_identical_vectors(self):
-        assert _cosine_similarity([1, 0, 0], [1, 0, 0]) == 1.0
-
-    def test_orthogonal_vectors(self):
-        assert _cosine_similarity([1, 0], [0, 1]) == 0.0
-
-    def test_zero_vector(self):
-        assert _cosine_similarity([0, 0], [1, 1]) == 0.0
-
-    def test_similar_vectors(self):
-        sim = _cosine_similarity([1, 1], [1, 0])
-        assert 0.5 < sim < 1.0
 
 
 class TestSongUsage:
@@ -166,3 +152,63 @@ class TestHelperQueries:
         db = _mock_db()
         db.sync_meta.find_one.return_value = None
         assert sync_status(db) == {"last_sync": None}
+
+
+class TestSearchLyrics:
+    def _songs(self):
+        return [
+            {"_id": "1", "title": "Joyful Song", "tags": ["Praise Up Beat"],
+             "arrangements": [{"lyrics": "There is joy in this house\nJoyful and glad"}],
+             "raw_attributes": {"themes": "Praise"}},
+            {"_id": "2", "title": "Rejoice", "tags": [],
+             "arrangements": [{"lyrics": "Let the earth rejoicing sing"}],
+             "raw_attributes": {"themes": None}},
+        ]
+
+    def test_matches_word_prefixes_and_ranks_by_count(self):
+        db = _mock_db()
+        db.songs.find.return_value = self._songs()
+        results = search_lyrics(db, ["joy", "rejoic"])
+        assert [r["title"] for r in results] == ["Joyful Song", "Rejoice"]
+        assert results[0]["match_count"] == 2
+        assert results[1]["matching_lines"] == ["Let the earth rejoicing sing"]
+
+    def test_no_terms_returns_empty_without_querying(self):
+        db = _mock_db()
+        assert search_lyrics(db, []) == []
+        db.songs.find.assert_not_called()
+
+    def test_excludes_tags_and_hidden_songs(self):
+        db = _mock_db()
+        db.songs.find.return_value = []
+        search_lyrics(db, ["joy"], exclude_tags=["Seasonal"])
+        query = db.songs.find.call_args[0][0]
+        assert query["tags"] == {"$nin": ["Seasonal"]}
+        assert query["raw_attributes.hidden"] == {"$ne": True}
+
+    def test_include_hidden_drops_the_hidden_filter(self):
+        db = _mock_db()
+        db.songs.find.return_value = []
+        search_lyrics(db, ["joy"], include_hidden=True)
+        assert "raw_attributes.hidden" not in db.songs.find.call_args[0][0]
+
+    def test_dedupes_repeated_lines(self):
+        db = _mock_db()
+        db.songs.find.return_value = [{
+            "_id": "3", "title": "Repeat", "tags": [],
+            "arrangements": [{"lyrics": "joy joy\njoy joy"}],
+            "raw_attributes": {},
+        }]
+        result = search_lyrics(db, ["joy"])[0]
+        assert result["match_count"] == 4
+        assert result["matching_lines"] == ["joy joy"]
+
+
+class TestSongsMissingLyrics:
+    def test_sorts_by_title(self):
+        db = _mock_db()
+        db.songs.find.return_value = [
+            {"_id": "2", "title": "Zion", "tags": []},
+            {"_id": "1", "title": "Alleluia", "tags": ["Hymn"]},
+        ]
+        assert [s["title"] for s in songs_missing_lyrics(db)] == ["Alleluia", "Zion"]
