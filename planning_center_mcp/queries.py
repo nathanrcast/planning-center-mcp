@@ -104,6 +104,19 @@ def song_tags_list(db: Database) -> list[str]:
     return sorted(t for t in db.songs.distinct("tags") if t)
 
 
+def songs_by_tags(db: Database, tags: list[str], match_all: bool = True) -> list[dict]:
+    """Songs carrying the given tags — all of them, or any when match_all is False."""
+    if not tags:
+        return []
+    query = {"tags": {"$all": tags} if match_all else {"$in": tags}}
+    return sorted(
+        ({"song_id": s["_id"], "title": s.get("title"), "tags": s.get("tags", []),
+          "last_scheduled_at": s.get("last_scheduled_at")}
+         for s in db.songs.find(query, {"title": 1, "tags": 1, "last_scheduled_at": 1})),
+        key=lambda s: (s["title"] or "").lower(),
+    )
+
+
 def search_lyrics(db: Database, terms: list[str], exclude_tags: list[str] | None = None,
                   include_hidden: bool = False, limit: int = 50) -> list[dict]:
     """Songs whose lyrics or themes contain any of `terms`.
@@ -119,6 +132,7 @@ def search_lyrics(db: Database, terms: list[str], exclude_tags: list[str] | None
 
     query = {"$or": [
         {"arrangements.lyrics": {"$regex": pattern}},
+        {"pro_lyrics.text": {"$regex": pattern}},
         {"raw_attributes.themes": {"$regex": pattern}},
     ]}
     if exclude_tags:
@@ -128,13 +142,18 @@ def search_lyrics(db: Database, terms: list[str], exclude_tags: list[str] | None
 
     results = []
     for song in db.songs.find(query):
-        lines, count = [], 0
-        for arr in song.get("arrangements", []):
-            for line in (arr.get("lyrics") or "").splitlines():
+        sources = [("pco", arr.get("lyrics") or "") for arr in song.get("arrangements", [])]
+        sources.append(("propresenter", (song.get("pro_lyrics") or {}).get("text") or ""))
+
+        lines, count, matched_in = [], 0, []
+        for source, text in sources:
+            for line in text.splitlines():
                 hits = pattern.findall(line)
                 if not hits:
                     continue
                 count += len(hits)
+                if source not in matched_in:
+                    matched_in.append(source)
                 line = line.strip()
                 if line not in lines:
                     lines.append(line)
@@ -145,6 +164,7 @@ def search_lyrics(db: Database, terms: list[str], exclude_tags: list[str] | None
             "themes": (song.get("raw_attributes") or {}).get("themes"),
             "match_count": count,
             "matching_lines": lines[:10],
+            "matched_in": matched_in or ["themes"],
         })
 
     results.sort(key=lambda r: r["match_count"], reverse=True)
@@ -152,9 +172,10 @@ def search_lyrics(db: Database, terms: list[str], exclude_tags: list[str] | None
 
 
 def songs_missing_lyrics(db: Database) -> list[dict]:
-    """Songs with no lyrics stored — the blind spot in any lyric search."""
+    """Songs with no lyrics from PCO or ProPresenter — the blind spot in any search."""
     songs = db.songs.find(
-        {"arrangements": {"$not": {"$elemMatch": {"lyrics": {"$nin": [None, ""]}}}}},
+        {"arrangements": {"$not": {"$elemMatch": {"lyrics": {"$nin": [None, ""]}}}},
+         "pro_lyrics.text": {"$in": [None, ""]}},
         {"title": 1, "tags": 1},
     )
     return sorted(

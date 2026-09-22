@@ -3,8 +3,11 @@ import threading
 import time
 from datetime import datetime, timezone
 
+import requests
 from pymongo.database import Database
 from pypco import PCO
+
+from planning_center_mcp.propresenter import lyrics_from_pro
 
 log = logging.getLogger(__name__)
 
@@ -156,6 +159,7 @@ class SyncManager:
             arrangements = self._fetch_song_arrangements(song_id)
             schedules = self._fetch_song_schedules(song_id)
             tags = self._fetch_song_tags(song_id)
+            pro_lyrics = self._fetch_pro_lyrics(song_id)
 
             self.db.songs.update_one(
                 {"_id": song_id},
@@ -170,6 +174,7 @@ class SyncManager:
                     "arrangements": arrangements,
                     "schedules": schedules,
                     "tags": tags,
+                    "pro_lyrics": pro_lyrics,
                     "raw_attributes": attrs,
                 }},
                 upsert=True,
@@ -191,6 +196,44 @@ class SyncManager:
                 "lyrics": attrs.get("lyrics"),
             })
         return arrangements
+
+    def _fetch_pro_lyrics(self, song_id: str) -> dict | None:
+        """Slide text from the song's ProPresenter attachment, if it has one.
+
+        Many songs carry no lyrics in PCO itself but do have a `.pro` file.
+        The download is skipped while the stored copy matches the attachment
+        PCO reports, so only new or changed files cost a request.
+        """
+        attachment = None
+        for att in self.pco.iterate(f"/services/v2/songs/{song_id}/attachments"):
+            attrs = att["data"]["attributes"]
+            if (attrs.get("filename") or "").lower().endswith(".pro"):
+                attachment = (att["data"]["id"], attrs)
+                break
+        if not attachment:
+            return None
+
+        attachment_id, attrs = attachment
+        stored = (self.db.songs.find_one({"_id": song_id}, {"pro_lyrics": 1}) or {}).get("pro_lyrics")
+        if (stored and stored.get("attachment_id") == attachment_id
+                and stored.get("updated_at") == attrs.get("updated_at")):
+            return stored
+
+        try:
+            opened = self.pco.post(f"/services/v2/attachments/{attachment_id}/open")
+            url = opened["data"]["attributes"]["attachment_url"]
+            data = requests.get(url, timeout=60).content
+            text = lyrics_from_pro(data)
+        except Exception as exc:
+            log.warning("ProPresenter lyrics unavailable for song %s: %s", song_id, exc)
+            return stored
+
+        return {
+            "text": text,
+            "attachment_id": attachment_id,
+            "filename": attrs.get("filename"),
+            "updated_at": attrs.get("updated_at"),
+        }
 
     def _fetch_song_tags(self, song_id: str) -> list:
         tags = []

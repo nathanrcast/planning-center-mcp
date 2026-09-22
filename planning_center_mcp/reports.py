@@ -18,6 +18,7 @@ from planning_center_mcp.queries import (
     upcoming_services,
     team_names_list,
     search_lyrics,
+    songs_by_tags,
     songs_missing_lyrics,
     sync_status,
 )
@@ -175,6 +176,15 @@ def register_report_tools(mcp: object, db: Database, sync_mgr: SyncManager):
     def get_team_names() -> list[str]:
         """All team names from synced data. Use for volunteer_activity_report filtering."""
         return team_names_list(db)
+
+    @mcp.tool
+    def find_songs_by_tags(tag_names: list[str], match_all: bool = True) -> list:
+        """Songs carrying all the given tags, or any of them with match_all=False.
+
+        Served from synced data, so every match is returned. Run sync_pco_data
+        after changing tags in PCO.
+        """
+        return songs_by_tags(db, tag_names, match_all=match_all)
 
     @mcp.tool
     def search_lyrics_report(

@@ -510,23 +510,6 @@ def register_tools(mcp: object, pco: PCO):
         tag_id = tag_response["data"]["id"]
         return f"Created tag '{tag_name}' (id={tag_id}) in group '{tag_group_name}' (id={group_id})"
 
-    @mcp.tool
-    @_pco_error_handler
-    def find_songs_by_tags(tag_names: list[str]) -> list:
-        """Find songs matching ALL given tags (AND logic)."""
-        tag_groups_response = pco.get(
-            "/services/v2/tag_groups", include="tags", filter="song"
-        )
-        all_tags = tag_groups_response.get("included", [])
-        tag_ids = [
-            t["id"] for t in all_tags if t["attributes"]["name"] in tag_names
-        ]
-        if not tag_ids:
-            return []
-        params = {"where[song_tag_ids]": ",".join(tag_ids)}
-        response = pco.get("/services/v2/songs", **params)
-        return slim_response(response["data"])
-
     # --- People API tools ---
 
     @mcp.tool

@@ -9,6 +9,7 @@ from planning_center_mcp.queries import (
     team_names_list,
     service_types_list,
     search_lyrics,
+    songs_by_tags,
     songs_missing_lyrics,
     sync_status,
 )
@@ -165,6 +166,27 @@ class TestSearchLyrics:
              "raw_attributes": {"themes": None}},
         ]
 
+    def test_searches_propresenter_lyrics_too(self):
+        db = _mock_db()
+        db.songs.find.return_value = [{
+            "_id": "4", "title": "Resucito", "tags": [],
+            "arrangements": [],
+            "pro_lyrics": {"text": "Alegria, hermanos"},
+            "raw_attributes": {},
+        }]
+        result = search_lyrics(db, ["alegr"])[0]
+        assert result["matched_in"] == ["propresenter"]
+        assert result["matching_lines"] == ["Alegria, hermanos"]
+
+    def test_theme_only_match_is_labelled(self):
+        db = _mock_db()
+        db.songs.find.return_value = [{
+            "_id": "5", "title": "Holy Is The Lord", "tags": [],
+            "arrangements": [{"lyrics": "We stand and lift up our hands"}],
+            "raw_attributes": {"themes": "Joy, Worship"},
+        }]
+        assert search_lyrics(db, ["joy"])[0]["matched_in"] == ["themes"]
+
     def test_matches_word_prefixes_and_ranks_by_count(self):
         db = _mock_db()
         db.songs.find.return_value = self._songs()
@@ -183,6 +205,7 @@ class TestSearchLyrics:
         db.songs.find.return_value = []
         search_lyrics(db, ["joy"], exclude_tags=["Seasonal"])
         query = db.songs.find.call_args[0][0]
+        assert {"pro_lyrics.text": {"$regex": query["$or"][1]["pro_lyrics.text"]["$regex"]}} in query["$or"]
         assert query["tags"] == {"$nin": ["Seasonal"]}
         assert query["raw_attributes.hidden"] == {"$ne": True}
 
@@ -212,3 +235,30 @@ class TestSongsMissingLyrics:
             {"_id": "1", "title": "Alleluia", "tags": ["Hymn"]},
         ]
         assert [s["title"] for s in songs_missing_lyrics(db)] == ["Alleluia", "Zion"]
+
+
+class TestSongsByTags:
+    def test_match_all_uses_all_operator(self):
+        db = _mock_db()
+        db.songs.find.return_value = []
+        songs_by_tags(db, ["Praise Up Beat", "Joy"])
+        assert db.songs.find.call_args[0][0] == {"tags": {"$all": ["Praise Up Beat", "Joy"]}}
+
+    def test_match_any_uses_in_operator(self):
+        db = _mock_db()
+        db.songs.find.return_value = []
+        songs_by_tags(db, ["Joy"], match_all=False)
+        assert db.songs.find.call_args[0][0] == {"tags": {"$in": ["Joy"]}}
+
+    def test_no_tags_returns_empty_without_querying(self):
+        db = _mock_db()
+        assert songs_by_tags(db, []) == []
+        db.songs.find.assert_not_called()
+
+    def test_sorts_by_title(self):
+        db = _mock_db()
+        db.songs.find.return_value = [
+            {"_id": "2", "title": "Zion", "tags": ["Joy"]},
+            {"_id": "1", "title": "alleluia", "tags": ["Joy"]},
+        ]
+        assert [s["title"] for s in songs_by_tags(db, ["Joy"])] == ["alleluia", "Zion"]
