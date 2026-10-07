@@ -1,6 +1,6 @@
-Researched 2026-09-20; not pursued.
-
 # CCLI SongSelect integration — research
+
+Researched 2026-09-20; not pursued.
 
 ## Context
 Research: is there a SongSelect API, and does an MCP exist? Goal: CCLI search working with the existing planning-center MCP.
