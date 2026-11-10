@@ -7,7 +7,7 @@ import httpx
 
 log = logging.getLogger(__name__)
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.13:11434")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 AGENT_MODEL = os.getenv("AGENT_MODEL", "qwen3.5:9b")
 MAX_ITERATIONS = 6
 OLLAMA_TIMEOUT = 180.0
